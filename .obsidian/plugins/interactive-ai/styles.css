@@ -1,6 +1,43 @@
 /* 插件容器 */
 .interactive-ai-container {
     padding: 10px;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+/* 输入区域 */
+.interactive-ai-input-area {
+    background-color: var(--background-primary);
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 5px;
+    padding: 10px;
+    margin-bottom: 10px;
+}
+
+.interactive-ai-input {
+    width: 100%;
+    resize: vertical;
+    min-height: 60px;
+    max-height: 200px;
+    margin-bottom: 8px;
+    padding: 8px;
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 4px;
+    background-color: var(--background-primary);
+    color: var(--text-normal);
+    font-size: 14px;
+}
+
+.interactive-ai-input:focus {
+    outline: none;
+    border-color: var(--interactive-accent);
+}
+
+.interactive-ai-input-buttons {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
 }
 
 /* 卡片样式 */
@@ -26,6 +63,7 @@
     font-size: 1em;
     color: var(--text-normal);
     margin-bottom: 12px;
+    white-space: pre-wrap;
 }
 
 /* 按钮容器 */
@@ -43,6 +81,7 @@
     padding: 4px 8px;
     cursor: pointer;
     font-size: 0.8em;
+    transition: opacity 0.2s ease;
 }
 
 .interactive-ai-button:hover {
