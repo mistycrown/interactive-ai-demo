@@ -1,0 +1,80 @@
+/* 插件容器 */
+.interactive-ai-container {
+    padding: 10px;
+}
+
+/* 卡片样式 */
+.interactive-ai-card {
+    background-color: var(--background-primary);
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 5px;
+    margin-bottom: 10px;
+    padding: 10px;
+    position: relative;
+}
+
+/* 问题折叠区域 */
+.interactive-ai-question {
+    font-size: 0.9em;
+    color: var(--text-muted);
+    margin-bottom: 8px;
+    cursor: pointer;
+}
+
+/* 答案区域 */
+.interactive-ai-answer {
+    font-size: 1em;
+    color: var(--text-normal);
+    margin-bottom: 12px;
+}
+
+/* 按钮容器 */
+.interactive-ai-buttons {
+    display: flex;
+    gap: 8px;
+}
+
+/* 按钮样式 */
+.interactive-ai-button {
+    background-color: var(--interactive-accent);
+    color: var(--text-on-accent);
+    border: none;
+    border-radius: 4px;
+    padding: 4px 8px;
+    cursor: pointer;
+    font-size: 0.8em;
+}
+
+.interactive-ai-button:hover {
+    opacity: 0.8;
+}
+
+/* 关闭按钮 */
+.interactive-ai-close {
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    cursor: pointer;
+    color: var(--text-muted);
+    font-size: 0.8em;
+}
+
+/* 设置页面样式 */
+.interactive-ai-settings {
+    padding: 10px;
+}
+
+.interactive-ai-settings-item {
+    margin-bottom: 15px;
+}
+
+.interactive-ai-settings-item label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: bold;
+}
+
+.interactive-ai-settings-item input {
+    width: 100%;
+    padding: 5px;
+} 
