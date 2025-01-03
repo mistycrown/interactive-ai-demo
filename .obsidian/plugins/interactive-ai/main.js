@@ -17,6 +17,13 @@ const DEFAULT_SETTINGS = {
         apiKey: '',
         baseUrl: 'https://api.deepseek.com'
     },
+    // Moonshot设置
+    moonshotConfig: {
+        enabled: false,
+        apiKey: '',
+        baseUrl: 'https://api.moonshot.cn/v1',
+        model: 'moonshot-v1-8k'
+    },
     // 当前选择的模型
     currentModel: 'spark',
     // 提示词设置
@@ -412,6 +419,8 @@ class InteractiveAIPlugin extends Plugin {
             return this.callSparkAPI(text, onUpdate);
         } else if (model === 'deepseek' && this.settings.deepseekConfig.enabled) {
             return this.callDeepSeekAPI(text, onUpdate);
+        } else if (model === 'moonshot' && this.settings.moonshotConfig.enabled) {
+            return this.callMoonshotAPI(text, onUpdate);
         } else {
             throw new Error('请先在设置中选择并配置要使用的模型');
         }
@@ -496,6 +505,90 @@ class InteractiveAIPlugin extends Plugin {
             };
         } catch (error) {
             console.error('DeepSeek API调用失败:', error);
+            throw error;
+        }
+    }
+
+    async callMoonshotAPI(text, onUpdate) {
+        if (!this.settings.moonshotConfig.apiKey) {
+            throw new Error('请先配置Moonshot API Key');
+        }
+
+        const url = `${this.settings.moonshotConfig.baseUrl}/chat/completions`;
+        const headers = {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${this.settings.moonshotConfig.apiKey}`
+        };
+
+        const data = {
+            model: this.settings.moonshotConfig.model,
+            messages: [
+                {
+                    role: 'system',
+                    content: '你是 Kimi，由 Moonshot AI 提供的人工智能助手，你更擅长中文和英文的对话。你会为用户提供安全，有帮助，准确的回答。同时，你会拒绝一切涉及恐怖主义，种族歧视，黄色暴力等问题的回答。Moonshot AI 为专有名词，不可翻译成其他语言。'
+                },
+                {
+                    role: 'user',
+                    content: text
+                }
+            ],
+            temperature: 0.3,
+            stream: true
+        };
+
+        try {
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: headers,
+                body: JSON.stringify(data)
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let content = '';
+
+            while (true) {
+                const {value, done} = await reader.read();
+                if (done) break;
+
+                const chunk = decoder.decode(value);
+                const lines = chunk.split('\n');
+
+                for (const line of lines) {
+                    if (line.trim() === '') continue;
+                    if (line.includes('[DONE]')) continue;
+
+                    try {
+                        const jsonStr = line.replace(/^data: /, '');
+                        const response = JSON.parse(jsonStr);
+                        
+                        if (response.choices && response.choices[0].delta.content) {
+                            content += response.choices[0].delta.content;
+                            if (onUpdate) {
+                                onUpdate(content);
+                            }
+                        }
+                    } catch (e) {
+                        console.error('解析响应失败:', e);
+                    }
+                }
+            }
+
+            return {
+                choices: [
+                    {
+                        message: {
+                            content: content
+                        }
+                    }
+                ]
+            };
+        } catch (error) {
+            console.error('Moonshot API调用失败:', error);
             throw error;
         }
     }
@@ -712,6 +805,7 @@ class InteractiveAISettingTab extends PluginSettingTab {
             .addDropdown(dropdown => dropdown
                 .addOption('spark', '讯飞星火')
                 .addOption('deepseek', 'DeepSeek')
+                .addOption('moonshot', 'Moonshot')
                 .setValue(this.plugin.settings.currentModel)
                 .onChange(async (value) => {
                     this.plugin.settings.currentModel = value;
@@ -820,6 +914,63 @@ class InteractiveAISettingTab extends PluginSettingTab {
                         .setValue(this.plugin.settings.deepseekConfig.baseUrl)
                         .onChange(async (value) => {
                             this.plugin.settings.deepseekConfig.baseUrl = value;
+                            await this.plugin.saveSettings();
+                        }));
+            }
+        }
+
+        // Moonshot设置
+        if (this.plugin.settings.currentModel === 'moonshot') {
+            containerEl.createEl('h3', {text: 'Moonshot设置'});
+            
+            new Setting(containerEl)
+                .setName('启用Moonshot')
+                .addToggle(toggle => toggle
+                    .setValue(this.plugin.settings.moonshotConfig.enabled)
+                    .onChange(async (value) => {
+                        this.plugin.settings.moonshotConfig.enabled = value;
+                        await this.plugin.saveSettings();
+                        this.display();
+                    }));
+
+            if (this.plugin.settings.moonshotConfig.enabled) {
+                new Setting(containerEl)
+                    .setName('API Key')
+                    .setDesc('请输入您的Moonshot API Key')
+                    .addText(text => text
+                        .setPlaceholder('输入API Key')
+                        .setValue(this.plugin.settings.moonshotConfig.apiKey)
+                        .onChange(async (value) => {
+                            this.plugin.settings.moonshotConfig.apiKey = value;
+                            await this.plugin.saveSettings();
+                        }));
+
+                new Setting(containerEl)
+                    .setName('API Base URL')
+                    .setDesc('Moonshot API的基础URL')
+                    .addText(text => text
+                        .setPlaceholder('https://api.moonshot.cn/v1')
+                        .setValue(this.plugin.settings.moonshotConfig.baseUrl)
+                        .onChange(async (value) => {
+                            this.plugin.settings.moonshotConfig.baseUrl = value;
+                            await this.plugin.saveSettings();
+                        }));
+
+                new Setting(containerEl)
+                    .setName('模型版本')
+                    .setDesc('选择Moonshot模型版本')
+                    .addDropdown(dropdown => dropdown
+                        .addOption('moonshot-v1-8k', 'Moonshot v1-8k')
+                        .addOption('moonshot-v1-16k', 'Moonshot v1-16k')
+                        .addOption('moonshot-v1-32k', 'Moonshot v1-32k')
+                        .addOption('moonshot-v1-64k', 'Moonshot v1-64k')
+                        .addOption('moonshot-v1-128k', 'Moonshot v1-128k')
+                        .addOption('moonshot-v1-256k', 'Moonshot v1-256k')
+                        .addOption('moonshot-v1-512k', 'Moonshot v1-512k')
+                        .addOption('moonshot-v1-1024k', 'Moonshot v1-1024k')
+                        .setValue(this.plugin.settings.moonshotConfig.model)
+                        .onChange(async (value) => {
+                            this.plugin.settings.moonshotConfig.model = value;
                             await this.plugin.saveSettings();
                         }));
             }

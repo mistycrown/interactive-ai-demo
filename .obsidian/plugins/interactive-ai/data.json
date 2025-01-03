@@ -1,17 +1,23 @@
 {
   "sparkConfig": {
     "enabled": true,
-    "apiKey": "",
-    "apiSecret": "",
-    "appId": "",
-    "domain": "generalv3.5"
+    "apiKey": "c55a80948405fd1f93ff2190320d7661",
+    "apiSecret": "NjFhYTdkYmVlZGZjODUwYjgyNTNlODRj",
+    "appId": "46e3e16f",
+    "domain": "lite"
   },
   "deepseekConfig": {
     "enabled": true,
     "apiKey": "sk-86e89b45781f49b1a759df7a9a42752c",
     "baseUrl": "https://api.deepseek.com"
   },
-  "currentModel": "spark",
+  "moonshotConfig": {
+    "enabled": true,
+    "apiKey": "sk-hxVxiPxSuUsxqkUHbMTmVtTaVjHpIPnVDM9toGKbrGX30S7B",
+    "baseUrl": "https://api.moonshot.cn/v1",
+    "model": "moonshot-v1-8k"
+  },
+  "currentModel": "moonshot",
   "prompts": [
     {
       "name": "总结",
