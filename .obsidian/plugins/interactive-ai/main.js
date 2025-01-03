@@ -125,11 +125,39 @@ class InteractiveAIView extends ItemView {
             await this.plugin.saveSettings();
         });
 
+        // 创建对话内容区域
+        this.contentArea = container.createDiv('interactive-ai-content');
+
         // 创建输入区域容器
         const inputContainer = container.createDiv('interactive-ai-input-container');
 
+        // 创建引用区域
+        const referenceArea = inputContainer.createDiv('interactive-ai-reference');
+        referenceArea.style.display = 'none'; // 默认隐藏
+
+        // 引用图标
+        const referenceIcon = referenceArea.createDiv('interactive-ai-reference-icon');
+        const quoteIcon = this.createSvgIcon('quote');
+        referenceIcon.appendChild(quoteIcon);
+
+        // 引用文本
+        const referenceText = referenceArea.createDiv('interactive-ai-reference-text');
+
+        // 清除引用按钮
+        const clearButton = referenceArea.createDiv('interactive-ai-reference-clear');
+        const closeIcon = this.createSvgIcon('x');
+        clearButton.appendChild(closeIcon);
+        clearButton.addEventListener('click', () => {
+            referenceArea.style.display = 'none';
+            referenceText.setText('');
+            delete inputContainer.dataset.reference;
+        });
+
+        // 创建输入框包装器
+        const inputWrapper = inputContainer.createDiv('interactive-ai-input-wrapper');
+
         // 创建输入框
-        const textarea = inputContainer.createEl('textarea', {
+        const textarea = inputWrapper.createEl('textarea', {
             cls: 'interactive-ai-input',
             attr: {
                 placeholder: '输入问题，按Enter发送（Shift+Enter换行）'
@@ -137,102 +165,96 @@ class InteractiveAIView extends ItemView {
         });
 
         // 添加发送按钮
-        const buttonContainer = inputContainer.createDiv('interactive-ai-input-buttons');
-        const sendButton = buttonContainer.createEl('button', {
+        const sendButton = inputWrapper.createEl('button', {
             cls: 'interactive-ai-send-button',
             text: '发送'
         });
 
-        sendButton.addEventListener('click', async () => {
+        // 处理发送逻辑
+        const handleSend = async () => {
             const text = textarea.value.trim();
             if (text) {
+                let finalText = text;
+                // 如果有引用文本，将其添加到问题中
+                if (inputContainer.dataset.reference) {
+                    finalText = `参考以下内容：\n${inputContainer.dataset.reference}\n\n${text}`;
+                }
+                
                 const card = this.createCard(text, '', null);
-                await this.plugin.callAPI(text, (content) => {
+                await this.plugin.callAPI(finalText, (content) => {
                     if (card) {
                         this.updateCardContent(card, content);
                     }
                 });
                 textarea.value = '';
+                // 清除引用
+                referenceArea.style.display = 'none';
+                referenceText.setText('');
+                delete inputContainer.dataset.reference;
             }
-        });
+        };
+
+        // 发送按钮点击事件
+        sendButton.addEventListener('click', handleSend);
 
         // 处理输入框的按键事件
         textarea.addEventListener('keydown', async (e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
-                const text = textarea.value.trim();
-                if (text) {
-                    const card = this.createCard(text, '', null);
-                    await this.plugin.callAPI(text, (content) => {
-                        if (card) {
-                            this.updateCardContent(card, content);
-                        }
-                    });
-                    textarea.value = '';
-                }
+                await handleSend();
             }
         });
-
-        // 创建对话内容区域
-        this.contentArea = container.createDiv('interactive-ai-content');
     }
 
-    // 创建图标按钮的辅助方法
-    createIconButton(container, iconName, ariaLabel) {
-        const button = container.createEl('button', {
-            cls: 'interactive-ai-icon-button',
-            attr: {
-                'aria-label': ariaLabel
-            }
-        });
-        
-        // 创建SVG图标
+    // 创建SVG图标的辅助方法
+    createSvgIcon(type) {
         const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-        svg.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
-        svg.setAttribute('width', '24');
-        svg.setAttribute('height', '24');
         svg.setAttribute('viewBox', '0 0 24 24');
+        svg.setAttribute('width', '16');
+        svg.setAttribute('height', '16');
         svg.setAttribute('fill', 'none');
         svg.setAttribute('stroke', 'currentColor');
         svg.setAttribute('stroke-width', '2');
         svg.setAttribute('stroke-linecap', 'round');
         svg.setAttribute('stroke-linejoin', 'round');
-        
-        // 根据图标名称添加相应的路径
-        switch (iconName) {
-            case 'ellipsis-vertical':
-                for (let i = 0; i < 3; i++) {
-                    const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-                    circle.setAttribute('cx', '12');
-                    circle.setAttribute('cy', (5 + i * 7).toString());
-                    circle.setAttribute('r', '1');
-                    svg.appendChild(circle);
-                }
+
+        let path;
+        switch (type) {
+            case 'quote':
+                path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                path.setAttribute('d', 'M3 21c3 0 7-1 7-8V5c0-1.25-.756-2.017-2-2H4c-1.25 0-2 .75-2 1.972V11c0 1.25.75 2 2 2 1 0 1 0 1 1v1c0 1-1 2-2 2s-1 .008-1 1.031V20c0 1 0 1 1 1z');
+                svg.appendChild(path);
+                const path2 = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                path2.setAttribute('d', 'M15 21c3 0 7-1 7-8V5c0-1.25-.757-2.017-2-2h-4c-1.25 0-2 .75-2 1.972V11c0 1.25.75 2 2 2h.75c0 2.25.25 4-2.75 4v3c0 1 0 1 1 1z');
+                svg.appendChild(path2);
                 break;
-            case 'chevron-left':
-                const leftPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-                leftPath.setAttribute('d', 'm15 18-6-6 6-6');
-                svg.appendChild(leftPath);
-                break;
-            case 'chevron-right':
-                const rightPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-                rightPath.setAttribute('d', 'm9 18 6-6-6-6');
-                svg.appendChild(rightPath);
-                break;
-            case 'settings':
-                const settingsPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-                settingsPath.setAttribute('d', 'M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z');
-                svg.appendChild(settingsPath);
-                const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-                circle.setAttribute('cx', '12');
-                circle.setAttribute('cy', '12');
-                circle.setAttribute('r', '3');
-                svg.appendChild(circle);
+            case 'x':
+                const line1 = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                line1.setAttribute('x1', '18');
+                line1.setAttribute('y1', '6');
+                line1.setAttribute('x2', '6');
+                line1.setAttribute('y2', '18');
+                const line2 = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                line2.setAttribute('x1', '6');
+                line2.setAttribute('y1', '6');
+                line2.setAttribute('x2', '18');
+                line2.setAttribute('y2', '18');
+                svg.appendChild(line1);
+                svg.appendChild(line2);
                 break;
         }
+        return svg;
+    }
+
+    // 设置引用文本的方法
+    setReference(text) {
+        const inputContainer = this.containerEl.querySelector('.interactive-ai-input-container');
+        const referenceArea = inputContainer.querySelector('.interactive-ai-reference');
+        const referenceText = referenceArea.querySelector('.interactive-ai-reference-text');
         
-        button.appendChild(svg);
-        return button;
+        referenceArea.style.display = 'flex';
+        referenceText.setText(text.length > 100 ? text.slice(0, 100) + '...' : text);
+        inputContainer.dataset.reference = text;
     }
 
     // 更新卡片内容
@@ -550,6 +572,24 @@ class InteractiveAIPlugin extends Plugin {
             hotkeys: [{ modifiers: ["Mod", "Alt"], key: "i" }]
         });
 
+        // 添加命令 - 引用选中文本
+        this.addCommand({
+            id: 'quote-to-interactive-ai',
+            name: '引用至Interactive AI',
+            editorCallback: (editor) => {
+                const selectedText = editor.getSelection();
+                if (selectedText) {
+                    this.activateView().then(() => {
+                        if (this.view) {
+                            this.view.setReference(selectedText);
+                        }
+                    });
+                } else {
+                    new Notice('请先选择文本');
+                }
+            }
+        });
+
         // 注册编辑器菜单事件
         this.registerEvent(
             this.app.workspace.on("editor-menu", (menu, editor) => {
@@ -573,6 +613,18 @@ class InteractiveAIPlugin extends Plugin {
                             .onClick(async () => {
                                 await this.activateView();  // 先打开侧边栏
                                 await this.handlePromptSelection(selectedText, selectedText);
+                            });
+                    });
+
+                    // 添加引用选项
+                    submenu.addItem((item) => {
+                        item.setTitle("引用至Interactive AI")
+                            .setIcon("quote-glyph")
+                            .onClick(async () => {
+                                await this.activateView();
+                                if (this.view) {
+                                    this.view.setReference(selectedText);
+                                }
                             });
                     });
 

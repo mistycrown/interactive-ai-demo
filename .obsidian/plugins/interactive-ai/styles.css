@@ -52,7 +52,7 @@
     box-shadow: 0 0 0 2px var(--background-modifier-border-hover);
 }
 
-/* 输入区域 */
+/* 输入区域容器 */
 .interactive-ai-input-container {
     position: fixed;
     bottom: 0;
@@ -67,11 +67,65 @@
     box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.05);
 }
 
+/* 引用区域 */
+.interactive-ai-reference {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+    padding: 8px 12px;
+    background-color: var(--background-secondary);
+    border-radius: 6px;
+    font-size: 13px;
+    color: var(--text-muted);
+    max-height: 60px;
+    overflow: hidden;
+}
+
+.interactive-ai-reference-icon {
+    flex-shrink: 0;
+    width: 16px;
+    height: 16px;
+    color: var(--text-muted);
+}
+
+.interactive-ai-reference-text {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    line-height: 1.4;
+}
+
+.interactive-ai-reference-clear {
+    flex-shrink: 0;
+    padding: 2px;
+    cursor: pointer;
+    color: var(--text-muted);
+    border-radius: 3px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.interactive-ai-reference-clear:hover {
+    color: var(--text-normal);
+    background-color: var(--background-modifier-hover);
+}
+
+/* 输入框区域 */
+.interactive-ai-input-wrapper {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+}
+
 .interactive-ai-input {
     width: 100%;
     resize: none;
     min-height: 80px;
     padding: 12px;
+    padding-right: 80px; /* 为发送按钮留出空间 */
     border: 1px solid var(--background-modifier-border);
     border-radius: 8px;
     background-color: var(--background-secondary);
@@ -283,7 +337,7 @@
 .interactive-ai-send-button {
     position: absolute;
     bottom: 24px;
-    right: 24px;
+    right: 12px;
     padding: 6px 16px;
     background-color: var(--interactive-accent);
     color: var(--text-on-accent);
