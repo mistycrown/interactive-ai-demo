@@ -1,4 +1,27 @@
 {
+  "sparkConfig": {
+    "enabled": true,
+    "apiKey": "",
+    "apiSecret": "",
+    "appId": "",
+    "domain": "generalv3.5"
+  },
+  "deepseekConfig": {
+    "enabled": true,
+    "apiKey": "sk-86e89b45781f49b1a759df7a9a42752c",
+    "baseUrl": "https://api.deepseek.com"
+  },
+  "currentModel": "spark",
+  "prompts": [
+    {
+      "name": "总结",
+      "prompt": "请总结以下内容：\n{{text}}"
+    },
+    {
+      "name": "翻译成英文",
+      "prompt": "请将以下内容翻译成英文：\n{{text}}"
+    }
+  ],
   "apiKey": "c55a80948405fd1f93ff2190320d7661",
   "apiSecret": "NjFhYTdkYmVlZGZjODUwYjgyNTNlODRj",
   "appId": "46e3e16f",

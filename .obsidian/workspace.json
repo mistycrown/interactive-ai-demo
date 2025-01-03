@@ -20,8 +20,37 @@
               "icon": "lucide-file",
               "title": "需求"
             }
+          },
+          {
+            "id": "4cee22df7f847c2a",
+            "type": "leaf",
+            "state": {
+              "type": "markdown",
+              "state": {
+                "file": "deepseek api文档.md",
+                "mode": "source",
+                "source": false
+              },
+              "icon": "lucide-file",
+              "title": "deepseek api文档"
+            }
+          },
+          {
+            "id": "127eda8cecf8c886",
+            "type": "leaf",
+            "state": {
+              "type": "markdown",
+              "state": {
+                "file": "需求.md",
+                "mode": "source",
+                "source": false
+              },
+              "icon": "lucide-file",
+              "title": "需求"
+            }
           }
-        ]
+        ],
+        "currentTab": 2
       }
     ],
     "direction": "vertical"
@@ -93,7 +122,7 @@
             "state": {
               "type": "backlink",
               "state": {
-                "file": "讯飞星火模型调用说明.md",
+                "file": "deepseek api文档.md",
                 "collapseAll": false,
                 "extraContext": false,
                 "sortOrder": "alphabetical",
@@ -103,7 +132,7 @@
                 "unlinkedCollapsed": true
               },
               "icon": "links-coming-in",
-              "title": "讯飞星火模型调用说明 的反向链接列表"
+              "title": "deepseek api文档 的反向链接列表"
             }
           },
           {
@@ -112,12 +141,12 @@
             "state": {
               "type": "outgoing-link",
               "state": {
-                "file": "讯飞星火模型调用说明.md",
+                "file": "deepseek api文档.md",
                 "linksCollapsed": false,
                 "unlinkedCollapsed": true
               },
               "icon": "links-going-out",
-              "title": "讯飞星火模型调用说明 的出链列表"
+              "title": "deepseek api文档 的出链列表"
             }
           },
           {
@@ -172,10 +201,16 @@
       "command-palette:打开命令面板": false
     }
   },
-  "active": "9ff414c90a92b8de",
+  "active": "127eda8cecf8c886",
   "lastOpenFiles": [
+    "api获取教程.md",
+    "attachments/Pasted image 20250103141438.png",
     "讯飞星火模型调用说明.md",
     "需求.md",
+    "Pasted image 20250103141328.png",
+    "attachments/Pasted image 20250103141359.png",
+    "attachments",
+    "deepseek api文档.md",
     "欢迎.md"
   ]
 }

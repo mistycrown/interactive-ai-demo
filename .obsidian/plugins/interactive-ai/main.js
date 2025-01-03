@@ -1,12 +1,35 @@
 'use strict';
 
-const { Plugin, ItemView, PluginSettingTab, Setting, Notice, MarkdownView } = require('obsidian');
+const { Plugin, ItemView, PluginSettingTab, Setting, Notice, MarkdownView, Menu } = require('obsidian');
 
 const DEFAULT_SETTINGS = {
-    apiKey: '',
-    apiSecret: '',
-    appId: '',
-    domain: 'generalv3.5'
+    // 讯飞星火设置
+    sparkConfig: {
+        enabled: true,
+        apiKey: '',
+        apiSecret: '',
+        appId: '',
+        domain: 'generalv3.5'
+    },
+    // DeepSeek设置
+    deepseekConfig: {
+        enabled: false,
+        apiKey: '',
+        baseUrl: 'https://api.deepseek.com'
+    },
+    // 当前选择的模型
+    currentModel: 'spark',
+    // 提示词设置
+    prompts: [
+        {
+            name: '总结',
+            prompt: '请总结以下内容：\n{{text}}'
+        },
+        {
+            name: '翻译成英文',
+            prompt: '请将以下内容翻译成英文：\n{{text}}'
+        }
+    ]
 }
 
 // 侧边栏视图类
@@ -32,9 +55,10 @@ class InteractiveAIView extends ItemView {
     }
 
     // 创建新的卡片
-    createCard(question, answer) {
+    createCard(question, answer, sourceInfo) {
         console.log('创建新卡片 - 问题:', question);
         console.log('创建新卡片 - 回答:', answer);
+        console.log('创建新卡片 - 源信息:', sourceInfo);
 
         const container = this.containerEl.children[1];
         if (!container) {
@@ -44,6 +68,9 @@ class InteractiveAIView extends ItemView {
 
         const cardEl = container.createDiv('interactive-ai-card');
         console.log('卡片元素已创建');
+
+        // 保存源信息
+        cardEl.sourceInfo = sourceInfo;
 
         // 关闭按钮
         const closeButton = cardEl.createDiv('interactive-ai-close');
@@ -71,7 +98,12 @@ class InteractiveAIView extends ItemView {
 
         // 回答部分
         const answerEl = cardEl.createDiv('interactive-ai-answer');
-        answerEl.setText(answer || '正在思考...');
+        const answerText = answerEl.createEl('div', {
+            text: answer || '正在思考...',
+            attr: {
+                style: 'user-select: text; cursor: text;'
+            }
+        });
 
         // 按钮容器
         const buttonsEl = cardEl.createDiv('interactive-ai-buttons');
@@ -79,36 +111,98 @@ class InteractiveAIView extends ItemView {
         // 替代按钮
         const replaceButton = this.createButton(buttonsEl, '替代', async () => {
             console.log('点击替代按钮');
-            const editor = this.plugin.getActiveEditor();
-            if (editor && editor.somethingSelected()) {
-                await this.plugin.replaceSelectedText(answerEl.getText());
-                new Notice('已替换选中文本');
+            if (cardEl.sourceInfo) {
+                const view = this.plugin.app.workspace.getActiveViewOfType(MarkdownView);
+                if (view && view.file.path === cardEl.sourceInfo.filePath) {
+                    // 如果当前打开的文件就是源文件
+                    const editor = view.editor;
+                    const from = cardEl.sourceInfo.from;
+                    const to = cardEl.sourceInfo.to;
+                    editor.setSelection(from, to);
+                    editor.replaceSelection(answerEl.getText());
+                    new Notice('已替换选中文本');
+                } else {
+                    // 需要先打开源文件
+                    const file = this.plugin.app.vault.getAbstractFileByPath(cardEl.sourceInfo.filePath);
+                    if (file) {
+                        await this.plugin.app.workspace.getLeaf().openFile(file);
+                        const view = this.plugin.app.workspace.getActiveViewOfType(MarkdownView);
+                        if (view) {
+                            const editor = view.editor;
+                            const from = cardEl.sourceInfo.from;
+                            const to = cardEl.sourceInfo.to;
+                            editor.setSelection(from, to);
+                            editor.replaceSelection(answerEl.getText());
+                            new Notice('已替换选中文本');
+                        }
+                    }
+                }
             } else {
-                new Notice('请先选择要替换的文本');
+                new Notice('无法找到原始文本位置');
             }
         });
 
         // 追加按钮
         const appendButton = this.createButton(buttonsEl, '追加', async () => {
             console.log('点击追加按钮');
-            const editor = this.plugin.getActiveEditor();
-            if (editor && editor.somethingSelected()) {
-                await this.plugin.appendToSelectedText(answerEl.getText());
-                new Notice('已在选中文本后追加');
+            if (cardEl.sourceInfo) {
+                const view = this.plugin.app.workspace.getActiveViewOfType(MarkdownView);
+                if (view && view.file.path === cardEl.sourceInfo.filePath) {
+                    const editor = view.editor;
+                    const to = cardEl.sourceInfo.to;
+                    editor.setCursor(to);
+                    editor.replaceRange('\n' + answerEl.getText(), to);
+                    new Notice('已在原文后追加');
+                } else {
+                    const file = this.plugin.app.vault.getAbstractFileByPath(cardEl.sourceInfo.filePath);
+                    if (file) {
+                        await this.plugin.app.workspace.getLeaf().openFile(file);
+                        const view = this.plugin.app.workspace.getActiveViewOfType(MarkdownView);
+                        if (view) {
+                            const editor = view.editor;
+                            const to = cardEl.sourceInfo.to;
+                            editor.setCursor(to);
+                            editor.replaceRange('\n' + answerEl.getText(), to);
+                            new Notice('已在原文后追加');
+                        }
+                    }
+                }
             } else {
-                new Notice('请先选择要追加的位置');
+                new Notice('无法找到原始文本位置');
             }
         });
 
         // 问答按钮
         const qaButton = this.createButton(buttonsEl, '问答', async () => {
             console.log('点击问答按钮');
-            const editor = this.plugin.getActiveEditor();
-            if (editor && editor.somethingSelected()) {
-                await this.plugin.insertAsQA(question, answerEl.getText());
-                new Notice('已插入问答格式');
+            if (cardEl.sourceInfo) {
+                const view = this.plugin.app.workspace.getActiveViewOfType(MarkdownView);
+                if (view && view.file.path === cardEl.sourceInfo.filePath) {
+                    const editor = view.editor;
+                    const from = cardEl.sourceInfo.from;
+                    const to = cardEl.sourceInfo.to;
+                    editor.setSelection(from, to);
+                    const qaFormat = `> [!answer] ${question}\n> ${answerEl.getText()}`;
+                    editor.replaceSelection(qaFormat);
+                    new Notice('已插入问答格式');
+                } else {
+                    const file = this.plugin.app.vault.getAbstractFileByPath(cardEl.sourceInfo.filePath);
+                    if (file) {
+                        await this.plugin.app.workspace.getLeaf().openFile(file);
+                        const view = this.plugin.app.workspace.getActiveViewOfType(MarkdownView);
+                        if (view) {
+                            const editor = view.editor;
+                            const from = cardEl.sourceInfo.from;
+                            const to = cardEl.sourceInfo.to;
+                            editor.setSelection(from, to);
+                            const qaFormat = `> [!answer] ${question}\n> ${answerEl.getText()}`;
+                            editor.replaceSelection(qaFormat);
+                            new Notice('已插入问答格式');
+                        }
+                    }
+                }
             } else {
-                new Notice('请先选择要插入的位置');
+                new Notice('无法找到原始文本位置');
             }
         });
 
@@ -128,7 +222,7 @@ class InteractiveAIView extends ItemView {
 
     // 更新卡片内容
     updateCardContent(cardEl, content) {
-        const answerEl = cardEl.querySelector('.interactive-ai-answer');
+        const answerEl = cardEl.querySelector('.interactive-ai-answer div');
         if (answerEl) {
             answerEl.setText(content);
         }
@@ -173,10 +267,87 @@ class InteractiveAIPlugin extends Plugin {
             hotkeys: [{ modifiers: ["Mod", "Shift"], key: "i" }]
         });
 
+        // 注册编辑器菜单事件
+        this.registerEvent(
+            this.app.workspace.on("editor-menu", (menu, editor) => {
+                const selectedText = editor.getSelection();
+                if (selectedText) {
+                    // 添加主菜单项
+                    menu.addItem((item) => {
+                        item.setTitle("Interactive AI")
+                            .setIcon("bot")
+                            .setSubmenu();  // 这会创建一个子菜单
+                    });
+
+                    // 获取最后添加的菜单项（即我们的主菜单项）
+                    const mainMenuItem = menu.items[menu.items.length - 1];
+                    const submenu = mainMenuItem.submenu;
+
+                    // 添加默认选项
+                    submenu.addItem((item) => {
+                        item.setTitle("直接发送")
+                            .setIcon("arrow-right")
+                            .onClick(async () => {
+                                await this.handlePromptSelection(selectedText, selectedText);
+                            });
+                    });
+
+                    // 添加分隔线
+                    submenu.addSeparator();
+
+                    // 添加自定义提示词选项
+                    this.settings.prompts.forEach(prompt => {
+                        submenu.addItem((item) => {
+                            item.setTitle(prompt.name)
+                                .onClick(async () => {
+                                    const processedPrompt = prompt.prompt.replace('{{text}}', selectedText);
+                                    await this.handlePromptSelection(selectedText, processedPrompt);
+                                });
+                        });
+                    });
+                }
+            })
+        );
+
         // 自动打开侧边栏
         this.app.workspace.onLayoutReady(() => {
             this.activateView();
         });
+    }
+
+    async handlePromptSelection(originalText, promptText) {
+        // 保存当前编辑器的状态
+        const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+        const sourceInfo = view ? {
+            filePath: view.file.path,
+            from: view.editor.getCursor('from'),
+            to: view.editor.getCursor('to')
+        } : null;
+
+        // 创建卡片并发送请求
+        const card = this.view.createCard(originalText, '', sourceInfo);
+        await this.callAPI(promptText, (content) => {
+            if (card) {
+                this.view.updateCardContent(card, content);
+            }
+        });
+    }
+
+    async processSelectedText(text) {
+        console.log('开始处理选中文本:', text);
+
+        if (!this.settings.apiSecret) {
+            console.error('API密钥未配置');
+            new Notice('请先在设置中配置API密钥');
+            return;
+        }
+
+        try {
+            await this.handlePromptSelection(text, text);
+        } catch (error) {
+            console.error('API调用失败:', error);
+            new Notice('调用API失败: ' + error.message);
+        }
     }
 
     async activateView() {
@@ -226,34 +397,6 @@ class InteractiveAIPlugin extends Plugin {
         return view ? view.editor : null;
     }
 
-    async processSelectedText(text) {
-        console.log('开始处理选中文本:', text);
-
-        if (!this.settings.apiSecret) {
-            console.error('API密钥未配置');
-            new Notice('请先在设置中配置API密钥');
-            return;
-        }
-
-        try {
-            console.log('调用API...');
-            // 先创建一个空的卡片
-            const card = this.view.createCard(text, '');
-            
-            const response = await this.callSparkAPI(text, (content) => {
-                // 更新卡片内容的回调函数
-                if (card) {
-                    this.view.updateCardContent(card, content);
-                }
-            });
-
-            console.log('API响应完成');
-        } catch (error) {
-            console.error('API调用失败:', error);
-            new Notice('调用API失败: ' + error.message);
-        }
-    }
-
     async loadSettings() {
         this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
     }
@@ -262,10 +405,126 @@ class InteractiveAIPlugin extends Plugin {
         await this.saveData(this.settings);
     }
 
+    async callAPI(text, onUpdate) {
+        const model = this.settings.currentModel;
+        
+        if (model === 'spark' && this.settings.sparkConfig.enabled) {
+            return this.callSparkAPI(text, onUpdate);
+        } else if (model === 'deepseek' && this.settings.deepseekConfig.enabled) {
+            return this.callDeepSeekAPI(text, onUpdate);
+        } else {
+            throw new Error('请先在设置中选择并配置要使用的模型');
+        }
+    }
+
+    async callDeepSeekAPI(text, onUpdate) {
+        if (!this.settings.deepseekConfig.apiKey) {
+            throw new Error('请先配置DeepSeek API Key');
+        }
+
+        const url = `${this.settings.deepseekConfig.baseUrl}/chat/completions`;
+        const headers = {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${this.settings.deepseekConfig.apiKey}`
+        };
+
+        const data = {
+            model: 'deepseek-chat',
+            messages: [
+                {
+                    role: 'system',
+                    content: 'You are a helpful assistant.'
+                },
+                {
+                    role: 'user',
+                    content: text
+                }
+            ],
+            stream: true
+        };
+
+        try {
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: headers,
+                body: JSON.stringify(data)
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let content = '';
+
+            while (true) {
+                const {value, done} = await reader.read();
+                if (done) break;
+
+                const chunk = decoder.decode(value);
+                const lines = chunk.split('\n');
+
+                for (const line of lines) {
+                    if (line.trim() === '') continue;
+                    if (line.includes('[DONE]')) continue;
+
+                    try {
+                        const jsonStr = line.replace(/^data: /, '');
+                        const response = JSON.parse(jsonStr);
+                        
+                        if (response.choices && response.choices[0].delta.content) {
+                            content += response.choices[0].delta.content;
+                            if (onUpdate) {
+                                onUpdate(content);
+                            }
+                        }
+                    } catch (e) {
+                        console.error('解析响应失败:', e);
+                    }
+                }
+            }
+
+            return {
+                choices: [
+                    {
+                        message: {
+                            content: content
+                        }
+                    }
+                ]
+            };
+        } catch (error) {
+            console.error('DeepSeek API调用失败:', error);
+            throw error;
+        }
+    }
+
     async callSparkAPI(text, onUpdate) {
-        if (!this.settings.apiKey || !this.settings.apiSecret || !this.settings.appId) {
+        if (!this.settings.sparkConfig.apiKey || !this.settings.sparkConfig.apiSecret || !this.settings.sparkConfig.appId) {
             throw new Error('请先完成API配置');
         }
+
+        // 根据模型版本获取对应的WebSocket URL
+        const getWebsocketUrl = () => {
+            const domain = this.settings.sparkConfig.domain;
+            switch (domain) {
+                case '4.0Ultra':
+                    return 'wss://spark-api.xf-yun.com/v4.0/chat';
+                case 'max-32k':
+                    return 'wss://spark-api.xf-yun.com/chat/max-32k';
+                case 'generalv3.5':
+                    return 'wss://spark-api.xf-yun.com/v3.5/chat';
+                case 'pro-128k':
+                    return 'wss://spark-api.xf-yun.com/chat/pro-128k';
+                case 'generalv3':
+                    return 'wss://spark-api.xf-yun.com/v3.1/chat';
+                case 'lite':
+                    return 'wss://spark-api.xf-yun.com/v1.1/chat';
+                default:
+                    throw new Error('未知的模型版本');
+            }
+        };
 
         return new Promise((resolve, reject) => {
             // 生成鉴权URL
@@ -446,50 +705,175 @@ class InteractiveAISettingTab extends PluginSettingTab {
         containerEl.empty();
         containerEl.createEl('h2', {text: 'Interactive AI 设置'});
 
+        // 模型选择
         new Setting(containerEl)
-            .setName('讯飞星火 App ID')
-            .setDesc('请输入您的讯飞星火 App ID')
-            .addText(text => text
-                .setPlaceholder('输入App ID')
-                .setValue(this.plugin.settings.appId)
-                .onChange(async (value) => {
-                    this.plugin.settings.appId = value;
-                    await this.plugin.saveSettings();
-                }));
-
-        new Setting(containerEl)
-            .setName('讯飞星火 API Key')
-            .setDesc('请输入您的讯飞星火 API Key')
-            .addText(text => text
-                .setPlaceholder('输入API Key')
-                .setValue(this.plugin.settings.apiKey)
-                .onChange(async (value) => {
-                    this.plugin.settings.apiKey = value;
-                    await this.plugin.saveSettings();
-                }));
-
-        new Setting(containerEl)
-            .setName('讯飞星火 API Secret')
-            .setDesc('请输入您的讯飞星火 API Secret')
-            .addText(text => text
-                .setPlaceholder('输入API Secret')
-                .setValue(this.plugin.settings.apiSecret)
-                .onChange(async (value) => {
-                    this.plugin.settings.apiSecret = value;
-                    await this.plugin.saveSettings();
-                }));
-
-        new Setting(containerEl)
-            .setName('模型版本')
-            .setDesc('选择讯飞星火模型版本')
+            .setName('选择使用的模型')
+            .setDesc('选择要使用的AI模型')
             .addDropdown(dropdown => dropdown
-                .addOption('generalv3.5', 'Spark Max V3.5')
-                .addOption('generalv2', 'Spark V2')
-                .addOption('generalv1.5', 'Spark V1.5')
-                .setValue(this.plugin.settings.domain)
+                .addOption('spark', '讯飞星火')
+                .addOption('deepseek', 'DeepSeek')
+                .setValue(this.plugin.settings.currentModel)
                 .onChange(async (value) => {
-                    this.plugin.settings.domain = value;
+                    this.plugin.settings.currentModel = value;
                     await this.plugin.saveSettings();
+                    // 刷新设置页面以显示/隐藏相应的设置项
+                    this.display();
+                }));
+
+        // 讯飞星火设置
+        if (this.plugin.settings.currentModel === 'spark') {
+            containerEl.createEl('h3', {text: '讯飞星火设置'});
+            
+            new Setting(containerEl)
+                .setName('启用讯飞星火')
+                .addToggle(toggle => toggle
+                    .setValue(this.plugin.settings.sparkConfig.enabled)
+                    .onChange(async (value) => {
+                        this.plugin.settings.sparkConfig.enabled = value;
+                        await this.plugin.saveSettings();
+                        this.display();
+                    }));
+
+            if (this.plugin.settings.sparkConfig.enabled) {
+                new Setting(containerEl)
+                    .setName('App ID')
+                    .setDesc('请输入您的讯飞星火 App ID')
+                    .addText(text => text
+                        .setPlaceholder('输入App ID')
+                        .setValue(this.plugin.settings.sparkConfig.appId)
+                        .onChange(async (value) => {
+                            this.plugin.settings.sparkConfig.appId = value;
+                            await this.plugin.saveSettings();
+                        }));
+
+                new Setting(containerEl)
+                    .setName('API Key')
+                    .setDesc('请输入您的讯飞星火 API Key')
+                    .addText(text => text
+                        .setPlaceholder('输入API Key')
+                        .setValue(this.plugin.settings.sparkConfig.apiKey)
+                        .onChange(async (value) => {
+                            this.plugin.settings.sparkConfig.apiKey = value;
+                            await this.plugin.saveSettings();
+                        }));
+
+                new Setting(containerEl)
+                    .setName('API Secret')
+                    .setDesc('请输入您的讯飞星火 API Secret')
+                    .addText(text => text
+                        .setPlaceholder('输入API Secret')
+                        .setValue(this.plugin.settings.sparkConfig.apiSecret)
+                        .onChange(async (value) => {
+                            this.plugin.settings.sparkConfig.apiSecret = value;
+                            await this.plugin.saveSettings();
+                        }));
+
+                new Setting(containerEl)
+                    .setName('模型版本')
+                    .setDesc('选择讯飞星火模型版本')
+                    .addDropdown(dropdown => dropdown
+                        .addOption('4.0Ultra', 'Spark 4.0 Ultra')
+                        .addOption('max-32k', 'Spark Max-32K')
+                        .addOption('generalv3.5', 'Spark Max')
+                        .addOption('pro-128k', 'Spark Pro-128K')
+                        .addOption('generalv3', 'Spark Pro')
+                        .addOption('lite', 'Spark Lite')
+                        .setValue(this.plugin.settings.sparkConfig.domain)
+                        .onChange(async (value) => {
+                            this.plugin.settings.sparkConfig.domain = value;
+                            await this.plugin.saveSettings();
+                        }));
+            }
+        }
+
+        // DeepSeek设置
+        if (this.plugin.settings.currentModel === 'deepseek') {
+            containerEl.createEl('h3', {text: 'DeepSeek设置'});
+            
+            new Setting(containerEl)
+                .setName('启用DeepSeek')
+                .addToggle(toggle => toggle
+                    .setValue(this.plugin.settings.deepseekConfig.enabled)
+                    .onChange(async (value) => {
+                        this.plugin.settings.deepseekConfig.enabled = value;
+                        await this.plugin.saveSettings();
+                        this.display();
+                    }));
+
+            if (this.plugin.settings.deepseekConfig.enabled) {
+                new Setting(containerEl)
+                    .setName('API Key')
+                    .setDesc('请输入您的DeepSeek API Key')
+                    .addText(text => text
+                        .setPlaceholder('输入API Key')
+                        .setValue(this.plugin.settings.deepseekConfig.apiKey)
+                        .onChange(async (value) => {
+                            this.plugin.settings.deepseekConfig.apiKey = value;
+                            await this.plugin.saveSettings();
+                        }));
+
+                new Setting(containerEl)
+                    .setName('API Base URL')
+                    .setDesc('DeepSeek API的基础URL')
+                    .addText(text => text
+                        .setPlaceholder('https://api.deepseek.com')
+                        .setValue(this.plugin.settings.deepseekConfig.baseUrl)
+                        .onChange(async (value) => {
+                            this.plugin.settings.deepseekConfig.baseUrl = value;
+                            await this.plugin.saveSettings();
+                        }));
+            }
+        }
+
+        // 提示词设置
+        containerEl.createEl('h3', {text: '自定义提示词'});
+        
+        // 提示词列表
+        const promptsContainer = containerEl.createDiv('prompt-list');
+        this.plugin.settings.prompts.forEach((prompt, index) => {
+            const promptContainer = promptsContainer.createDiv('prompt-item');
+            
+            new Setting(promptContainer)
+                .setName('提示词名称')
+                .addText(text => text
+                    .setValue(prompt.name)
+                    .onChange(async (value) => {
+                        this.plugin.settings.prompts[index].name = value;
+                        await this.plugin.saveSettings();
+                    }));
+
+            new Setting(promptContainer)
+                .setName('提示词内容')
+                .setDesc('使用 {{text}} 表示选中的文字')
+                .addTextArea(text => text
+                    .setValue(prompt.prompt)
+                    .onChange(async (value) => {
+                        this.plugin.settings.prompts[index].prompt = value;
+                        await this.plugin.saveSettings();
+                    }));
+
+            // 删除按钮
+            new Setting(promptContainer)
+                .addButton(button => button
+                    .setButtonText('删除')
+                    .onClick(async () => {
+                        this.plugin.settings.prompts.splice(index, 1);
+                        await this.plugin.saveSettings();
+                        this.display();
+                    }));
+        });
+
+        // 添加新提示词按钮
+        new Setting(containerEl)
+            .addButton(button => button
+                .setButtonText('+ 添加提示词')
+                .onClick(async () => {
+                    this.plugin.settings.prompts.push({
+                        name: '新提示词',
+                        prompt: '{{text}}'
+                    });
+                    await this.plugin.saveSettings();
+                    this.display();
                 }));
     }
 }

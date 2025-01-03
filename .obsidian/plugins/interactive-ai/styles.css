@@ -116,4 +116,33 @@
 .interactive-ai-settings-item input {
     width: 100%;
     padding: 5px;
+}
+
+/* 提示词设置样式 */
+.prompt-list {
+    margin: 20px 0;
+}
+
+.prompt-item {
+    background-color: var(--background-secondary);
+    border-radius: 5px;
+    padding: 10px;
+    margin-bottom: 15px;
+}
+
+.prompt-item textarea {
+    width: 100%;
+    min-height: 100px;
+    resize: vertical;
+    font-family: var(--font-monospace);
+    background-color: var(--background-primary);
+    color: var(--text-normal);
+    padding: 8px;
+    border-radius: 4px;
+    border: 1px solid var(--background-modifier-border);
+}
+
+.prompt-item textarea:focus {
+    outline: none;
+    border-color: var(--interactive-accent);
 } 
