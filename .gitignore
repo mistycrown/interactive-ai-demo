@@ -1,0 +1,27 @@
+# Obsidian plugin data files
+.obsidian/plugins/interactive-ai/data.json
+
+# Environment files
+.env
+*.env
+
+# Python virtual environment
+venv/
+env/
+__pycache__/
+*.pyc
+
+# IDE files
+.vscode/
+.idea/
+
+# Logs
+*.log
+
+# Test files
+test_api.py
+
+# Temporary files
+*.tmp
+*~
+.DS_Store 

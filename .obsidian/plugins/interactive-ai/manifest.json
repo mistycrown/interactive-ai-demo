@@ -3,10 +3,9 @@
     "name": "Interactive AI",
     "version": "1.0.0",
     "minAppVersion": "0.15.0",
-    "description": "一个基于讯飞星火的智能写作助手，提供便捷的AI交互体验",
+    "description": "An interactive AI assistant for Obsidian.",
     "author": "Your Name",
-    "authorUrl": "",
-    "isDesktopOnly": false,
-    "js": "main.js",
-    "css": "styles.css"
+    "authorUrl": "https://github.com/yourusername",
+    "isDesktopOnly": true,
+    "icon": "bot"
 } 

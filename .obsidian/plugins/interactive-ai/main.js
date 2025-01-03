@@ -1,6 +1,6 @@
 'use strict';
 
-const { Plugin, ItemView, PluginSettingTab, Setting, Notice, MarkdownView, Menu } = require('obsidian');
+const { Plugin, ItemView, PluginSettingTab, Setting, Notice, MarkdownView, Menu, MarkdownRenderer } = require('obsidian');
 
 const DEFAULT_SETTINGS = {
     // 讯飞星火设置
@@ -89,31 +89,203 @@ class InteractiveAIView extends ItemView {
         const container = this.containerEl.children[1];
         container.empty();
         container.classList.add('interactive-ai-container');
+
+        // 创建导航栏
+        const navBar = container.createDiv('interactive-ai-nav');
+        
+        // 模型选择器
+        const modelSelector = navBar.createEl('select', {
+            cls: 'interactive-ai-model-select'
+        });
+
+        // 添加已启用的模型选项
+        const configs = {
+            'spark': { name: '讯飞星火', config: this.plugin.settings.sparkConfig },
+            'deepseek': { name: 'DeepSeek', config: this.plugin.settings.deepseekConfig },
+            'moonshot': { name: 'Moonshot', config: this.plugin.settings.moonshotConfig },
+            'glm': { name: '智谱GLM', config: this.plugin.settings.glmConfig },
+            'qwen': { name: '通义千问', config: this.plugin.settings.qwenConfig },
+            'doubao': { name: '豆包', config: this.plugin.settings.doubaoConfig }
+        };
+
+        Object.entries(configs).forEach(([key, value]) => {
+            if (value.config.enabled) {
+                const option = modelSelector.createEl('option', {
+                    text: value.name,
+                    value: key
+                });
+                if (key === this.plugin.settings.currentModel) {
+                    option.selected = true;
+                }
+            }
+        });
+
+        modelSelector.addEventListener('change', async (e) => {
+            this.plugin.settings.currentModel = e.target.value;
+            await this.plugin.saveSettings();
+        });
+
+        // 创建输入区域容器
+        const inputContainer = container.createDiv('interactive-ai-input-container');
+
+        // 创建输入框
+        const textarea = inputContainer.createEl('textarea', {
+            cls: 'interactive-ai-input',
+            attr: {
+                placeholder: '输入问题，按Enter发送（Shift+Enter换行）'
+            }
+        });
+
+        // 添加发送按钮
+        const buttonContainer = inputContainer.createDiv('interactive-ai-input-buttons');
+        const sendButton = buttonContainer.createEl('button', {
+            cls: 'interactive-ai-send-button',
+            text: '发送'
+        });
+
+        sendButton.addEventListener('click', async () => {
+            const text = textarea.value.trim();
+            if (text) {
+                const card = this.createCard(text, '', null);
+                await this.plugin.callAPI(text, (content) => {
+                    if (card) {
+                        this.updateCardContent(card, content);
+                    }
+                });
+                textarea.value = '';
+            }
+        });
+
+        // 处理输入框的按键事件
+        textarea.addEventListener('keydown', async (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                const text = textarea.value.trim();
+                if (text) {
+                    const card = this.createCard(text, '', null);
+                    await this.plugin.callAPI(text, (content) => {
+                        if (card) {
+                            this.updateCardContent(card, content);
+                        }
+                    });
+                    textarea.value = '';
+                }
+            }
+        });
+
+        // 创建对话内容区域
+        this.contentArea = container.createDiv('interactive-ai-content');
+    }
+
+    // 创建图标按钮的辅助方法
+    createIconButton(container, iconName, ariaLabel) {
+        const button = container.createEl('button', {
+            cls: 'interactive-ai-icon-button',
+            attr: {
+                'aria-label': ariaLabel
+            }
+        });
+        
+        // 创建SVG图标
+        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        svg.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+        svg.setAttribute('width', '24');
+        svg.setAttribute('height', '24');
+        svg.setAttribute('viewBox', '0 0 24 24');
+        svg.setAttribute('fill', 'none');
+        svg.setAttribute('stroke', 'currentColor');
+        svg.setAttribute('stroke-width', '2');
+        svg.setAttribute('stroke-linecap', 'round');
+        svg.setAttribute('stroke-linejoin', 'round');
+        
+        // 根据图标名称添加相应的路径
+        switch (iconName) {
+            case 'ellipsis-vertical':
+                for (let i = 0; i < 3; i++) {
+                    const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                    circle.setAttribute('cx', '12');
+                    circle.setAttribute('cy', (5 + i * 7).toString());
+                    circle.setAttribute('r', '1');
+                    svg.appendChild(circle);
+                }
+                break;
+            case 'chevron-left':
+                const leftPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                leftPath.setAttribute('d', 'm15 18-6-6 6-6');
+                svg.appendChild(leftPath);
+                break;
+            case 'chevron-right':
+                const rightPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                rightPath.setAttribute('d', 'm9 18 6-6-6-6');
+                svg.appendChild(rightPath);
+                break;
+            case 'settings':
+                const settingsPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                settingsPath.setAttribute('d', 'M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z');
+                svg.appendChild(settingsPath);
+                const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                circle.setAttribute('cx', '12');
+                circle.setAttribute('cy', '12');
+                circle.setAttribute('r', '3');
+                svg.appendChild(circle);
+                break;
+        }
+        
+        button.appendChild(svg);
+        return button;
+    }
+
+    // 更新卡片内容
+    updateCardContent(cardEl, content) {
+        const answerEl = cardEl.querySelector('.interactive-ai-answer div');
+        if (answerEl) {
+            // 保存原始文本
+            answerEl.setAttribute('data-original-text', content);
+            // 清空现有内容
+            answerEl.empty();
+            // 渲染Markdown
+            MarkdownRenderer.renderMarkdown(content, answerEl, '', this.plugin);
+        }
     }
 
     // 创建新的卡片
     createCard(question, answer, sourceInfo) {
-        console.log('创建新卡片 - 问题:', question);
-        console.log('创建新卡片 - 回答:', answer);
-        console.log('创建新卡片 - 源信息:', sourceInfo);
-
-        const container = this.containerEl.children[1];
-        if (!container) {
-            console.error('找不到容器元素');
-            return;
-        }
-
-        const cardEl = container.createDiv('interactive-ai-card');
-        console.log('卡片元素已创建');
-
-        // 保存源信息
+        const cardEl = this.contentArea.createDiv('interactive-ai-card');
+        
+        // 保存源信息和原始问题
         cardEl.sourceInfo = sourceInfo;
+        cardEl.originalQuestion = question;
+
+        // 创建卡片头部
+        const headerEl = cardEl.createDiv('interactive-ai-card-header');
+        
+        // 左侧时间戳和问题
+        const headerLeft = headerEl.createDiv('interactive-ai-header-left');
+        
+        // 时间戳
+        const timestamp = headerLeft.createDiv('interactive-ai-timestamp');
+        const now = new Date();
+        timestamp.setText(now.toLocaleString('zh-CN', {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: false
+        }));
+
+        // 问题部分
+        const questionEl = headerLeft.createDiv('interactive-ai-question');
+        const questionContent = questionEl.createDiv('interactive-ai-question-content');
+        const shortQuestion = question.length > 20 ? question.slice(0, 20) + '...' : question;
+        questionContent.setText(shortQuestion);
+        questionContent.setAttribute('data-original-text', question);
 
         // 关闭按钮
-        const closeButton = cardEl.createDiv('interactive-ai-close');
+        const closeButton = headerEl.createDiv('interactive-ai-close');
         closeButton.setText('×');
         closeButton.addEventListener('click', () => {
-            console.log('关闭卡片');
             cardEl.remove();
             const index = this.cards.indexOf(cardEl);
             if (index > -1) {
@@ -121,107 +293,71 @@ class InteractiveAIView extends ItemView {
             }
         });
 
-        // 问题部分
-        const questionEl = cardEl.createDiv('interactive-ai-question');
-        const questionContent = questionEl.createDiv('interactive-ai-question-content');
-        questionContent.setText(question);
-
-        // 检查问题内容是否超过一行
-        setTimeout(() => {
-            if (questionContent.scrollHeight > questionContent.clientHeight) {
-                // 问题内容超过一行，添加展开/折叠功能
-                questionEl.addClass('expandable');
-                const toggleButton = questionEl.createDiv('interactive-ai-toggle');
-                toggleButton.setText('展开');
-                
-                let isExpanded = false;
-                toggleButton.addEventListener('click', () => {
-                    isExpanded = !isExpanded;
-                    questionContent.style.maxHeight = isExpanded ? questionContent.scrollHeight + 'px' : '1.5em';
-                    toggleButton.setText(isExpanded ? '折叠' : '展开');
-                });
-            }
-        }, 0);
-
         // 回答部分
         const answerEl = cardEl.createDiv('interactive-ai-answer');
-        const answerText = answerEl.createEl('div', {
-            text: answer || '正在思考...',
+        const answerContent = answerEl.createDiv({
+            cls: 'markdown-rendered',
             attr: {
                 style: 'user-select: text; cursor: text;'
             }
         });
+        
+        // 渲染初始回答
+        if (answer) {
+            answerContent.setAttribute('data-original-text', answer);
+            MarkdownRenderer.renderMarkdown(answer, answerContent, '', this.plugin);
+        } else {
+            answerContent.setText('正在思考...');
+        }
 
         // 按钮容器
         const buttonsEl = cardEl.createDiv('interactive-ai-buttons');
 
-        // 替代按钮
-        const replaceButton = this.createButton(buttonsEl, '替代', async () => {
-            console.log('点击替代按钮');
+        // 重试按钮
+        const retryButton = this.createButton(buttonsEl, '重试', async () => {
+            // 清空现有回答
+            answerContent.empty();
+            answerContent.setText('正在思考...');
+            
+            // 重新发送请求
+            await this.plugin.callAPI(cardEl.originalQuestion, (content) => {
+                this.updateCardContent(cardEl, content);
+            });
+        });
+
+        // 替换按钮
+        const replaceButton = this.createButton(buttonsEl, '替换', async () => {
             if (cardEl.sourceInfo) {
                 const view = this.plugin.app.workspace.getActiveViewOfType(MarkdownView);
                 if (view && view.file.path === cardEl.sourceInfo.filePath) {
-                    // 如果当前打开的文件就是源文件
                     const editor = view.editor;
                     const from = cardEl.sourceInfo.from;
                     const to = cardEl.sourceInfo.to;
                     editor.setSelection(from, to);
-                    editor.replaceSelection(answerEl.getText());
-                    new Notice('已替换选中文本');
-                } else {
-                    // 需要先打开源文件
-                    const file = this.plugin.app.vault.getAbstractFileByPath(cardEl.sourceInfo.filePath);
-                    if (file) {
-                        await this.plugin.app.workspace.getLeaf().openFile(file);
-                        const view = this.plugin.app.workspace.getActiveViewOfType(MarkdownView);
-                        if (view) {
-                            const editor = view.editor;
-                            const from = cardEl.sourceInfo.from;
-                            const to = cardEl.sourceInfo.to;
-                            editor.setSelection(from, to);
-                            editor.replaceSelection(answerEl.getText());
+                    const originalText = answerContent.getAttribute('data-original-text');
+                    editor.replaceSelection(originalText);
                             new Notice('已替换选中文本');
                         }
-                    }
-                }
-            } else {
-                new Notice('无法找到原始文本位置');
             }
         });
 
-        // 追加按钮
-        const appendButton = this.createButton(buttonsEl, '追加', async () => {
-            console.log('点击追加按钮');
+        // 插入按钮
+        const appendButton = this.createButton(buttonsEl, '插入', async () => {
             if (cardEl.sourceInfo) {
                 const view = this.plugin.app.workspace.getActiveViewOfType(MarkdownView);
                 if (view && view.file.path === cardEl.sourceInfo.filePath) {
                     const editor = view.editor;
                     const to = cardEl.sourceInfo.to;
                     editor.setCursor(to);
-                    editor.replaceRange('\n' + answerEl.getText(), to);
-                    new Notice('已在原文后追加');
-                } else {
-                    const file = this.plugin.app.vault.getAbstractFileByPath(cardEl.sourceInfo.filePath);
-                    if (file) {
-                        await this.plugin.app.workspace.getLeaf().openFile(file);
-                        const view = this.plugin.app.workspace.getActiveViewOfType(MarkdownView);
-                        if (view) {
-                            const editor = view.editor;
-                            const to = cardEl.sourceInfo.to;
-                            editor.setCursor(to);
-                            editor.replaceRange('\n' + answerEl.getText(), to);
-                            new Notice('已在原文后追加');
-                        }
-                    }
+                    const originalText = answerContent.getAttribute('data-original-text');
+                    editor.replaceRange('\n' + originalText, to);
+                    new Notice('已在原文后插入');
                 }
-            } else {
-                new Notice('无法找到原始文本位置');
             }
         });
 
         // 问答按钮
         const qaButton = this.createButton(buttonsEl, '问答', async () => {
-            console.log('点击问答按钮');
             if (cardEl.sourceInfo) {
                 const view = this.plugin.app.workspace.getActiveViewOfType(MarkdownView);
                 if (view && view.file.path === cardEl.sourceInfo.filePath) {
@@ -229,70 +365,151 @@ class InteractiveAIView extends ItemView {
                     const from = cardEl.sourceInfo.from;
                     const to = cardEl.sourceInfo.to;
                     editor.setSelection(from, to);
-                    
-                    // 使用自定义问答格式
+                    const originalText = answerContent.getAttribute('data-original-text');
                     const format = this.plugin.settings.qaFormat.template
                         .replace(this.plugin.settings.qaFormat.questionPlaceholder, question)
-                        .replace(this.plugin.settings.qaFormat.answerPlaceholder, answerEl.getText());
-                    
-                    editor.replaceSelection(format);
-                    new Notice('已插入问答格式');
-                } else {
-                    const file = this.plugin.app.vault.getAbstractFileByPath(cardEl.sourceInfo.filePath);
-                    if (file) {
-                        await this.plugin.app.workspace.getLeaf().openFile(file);
-                        const view = this.plugin.app.workspace.getActiveViewOfType(MarkdownView);
-                        if (view) {
-                            const editor = view.editor;
-                            const from = cardEl.sourceInfo.from;
-                            const to = cardEl.sourceInfo.to;
-                            editor.setSelection(from, to);
-                            
-                            // 使用自定义问答格式
-                            const format = this.plugin.settings.qaFormat.template
-                                .replace(this.plugin.settings.qaFormat.questionPlaceholder, question)
-                                .replace(this.plugin.settings.qaFormat.answerPlaceholder, answerEl.getText());
-                            
+                        .replace(this.plugin.settings.qaFormat.answerPlaceholder, originalText);
                             editor.replaceSelection(format);
                             new Notice('已插入问答格式');
                         }
-                    }
-                }
-            } else {
-                new Notice('无法找到原始文本位置');
             }
         });
 
-        // 将新卡片插入到容器的最前面
-        if (container.firstChild) {
-            console.log('插入到第一个位置');
-            container.insertBefore(cardEl, container.firstChild);
+        // 将新卡片插入到内容区域的最前面
+        if (this.contentArea.firstChild) {
+            this.contentArea.insertBefore(cardEl, this.contentArea.firstChild);
         } else {
-            console.log('添加到容器末尾');
-            container.appendChild(cardEl);
+            this.contentArea.appendChild(cardEl);
         }
 
+        this.cards = this.cards || [];
         this.cards.push(cardEl);
-        console.log('卡片创建完成');
         return cardEl;
-    }
-
-    // 更新卡片内容
-    updateCardContent(cardEl, content) {
-        const answerEl = cardEl.querySelector('.interactive-ai-answer div');
-        if (answerEl) {
-            answerEl.setText(content);
-        }
     }
 
     // 创建按钮
     createButton(container, text, callback) {
         const button = container.createEl('button', {
-            text: text,
-            cls: 'interactive-ai-button'
+            cls: 'interactive-ai-button',
+            attr: {
+                'aria-label': text
+            }
         });
+
+        // 创建SVG图标
+        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        svg.setAttribute('viewBox', '0 0 24 24');
+        svg.setAttribute('fill', 'none');
+        svg.setAttribute('stroke', 'currentColor');
+        svg.setAttribute('stroke-width', '2');
+        svg.setAttribute('stroke-linecap', 'round');
+        svg.setAttribute('stroke-linejoin', 'round');
+
+        // 根据按钮类型添加不同的图标路径
+        switch (text) {
+            case '重试':
+                // 重试图标 (refresh)
+                const refreshPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                refreshPath.setAttribute('d', 'M23 4v6h-6M1 20v-6h6');
+                const refreshPath2 = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                refreshPath2.setAttribute('d', 'M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15');
+                svg.appendChild(refreshPath);
+                svg.appendChild(refreshPath2);
+                break;
+            case '替换':
+                // 替换图标 (replace)
+                const replacePath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                replacePath.setAttribute('d', 'M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z');
+                svg.appendChild(replacePath);
+                break;
+            case '插入':
+                // 插入图标 (plus-circle)
+                const insertCircle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                insertCircle.setAttribute('cx', '12');
+                insertCircle.setAttribute('cy', '12');
+                insertCircle.setAttribute('r', '10');
+                const insertPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                insertPath.setAttribute('d', 'M12 8v8M8 12h8');
+                svg.appendChild(insertCircle);
+                svg.appendChild(insertPath);
+                break;
+            case '问答':
+                // 问答图标 (message-circle)
+                const qaPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                qaPath.setAttribute('d', 'M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z');
+                svg.appendChild(qaPath);
+                break;
+        }
+
+        button.appendChild(svg);
         button.addEventListener('click', callback);
         return button;
+    }
+
+    // 辅助函数：将HTML转换为Markdown
+    htmlToMarkdown(html) {
+        // 移除所有的 class 属性
+        html = html.replace(/\sclass="[^"]*"/g, '');
+        
+        // 处理代码块
+        html = html.replace(/<pre><code([^>]*)>([\s\S]*?)<\/code><\/pre>/g, (match, attrs, content) => {
+            // 移除HTML实体编码
+            content = content
+                .replace(/&lt;/g, '<')
+                .replace(/&gt;/g, '>')
+                .replace(/&amp;/g, '&')
+                .replace(/&quot;/g, '"')
+                .replace(/&#x27;/g, "'")
+                .replace(/&#x2F;/g, '/')
+                .replace(/&nbsp;/g, ' ');
+            return '```\n' + content + '\n```';
+        });
+
+        // 处理其他Markdown元素
+        return html
+            // 段落
+            .replace(/<p[^>]*>([\s\S]*?)<\/p>/g, '$1\n\n')
+            // 标题
+            .replace(/<h1[^>]*>(.*?)<\/h1>/g, '# $1\n')
+            .replace(/<h2[^>]*>(.*?)<\/h2>/g, '## $1\n')
+            .replace(/<h3[^>]*>(.*?)<\/h3>/g, '### $1\n')
+            .replace(/<h4[^>]*>(.*?)<\/h4>/g, '#### $1\n')
+            .replace(/<h5[^>]*>(.*?)<\/h5>/g, '##### $1\n')
+            .replace(/<h6[^>]*>(.*?)<\/h6>/g, '###### $1\n')
+            // 列表
+            .replace(/<ul[^>]*>([\s\S]*?)<\/ul>/g, '$1\n')
+            .replace(/<ol[^>]*>([\s\S]*?)<\/ol>/g, '$1\n')
+            .replace(/<li[^>]*>([\s\S]*?)<\/li>/g, '- $1\n')
+            // 引用
+            .replace(/<blockquote[^>]*>([\s\S]*?)<\/blockquote>/g, '> $1\n')
+            // 强调
+            .replace(/<strong[^>]*>([\s\S]*?)<\/strong>/g, '**$1**')
+            .replace(/<b[^>]*>([\s\S]*?)<\/b>/g, '**$1**')
+            .replace(/<em[^>]*>([\s\S]*?)<\/em>/g, '*$1*')
+            .replace(/<i[^>]*>([\s\S]*?)<\/i>/g, '*$1*')
+            // 行内代码
+            .replace(/<code[^>]*>([\s\S]*?)<\/code>/g, '`$1`')
+            // 链接
+            .replace(/<a[^>]*href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/g, '[$2]($1)')
+            // 图片
+            .replace(/<img[^>]*src="([^"]*)"[^>]*alt="([^"]*)"[^>]*>/g, '![$2]($1)')
+            // 分隔线
+            .replace(/<hr[^>]*>/g, '---\n')
+            // 换行
+            .replace(/<br[^>]*>/g, '\n')
+            // 移除剩余的HTML标签
+            .replace(/<[^>]+>/g, '')
+            // 处理HTML实体
+            .replace(/&lt;/g, '<')
+            .replace(/&gt;/g, '>')
+            .replace(/&amp;/g, '&')
+            .replace(/&quot;/g, '"')
+            .replace(/&#x27;/g, "'")
+            .replace(/&#x2F;/g, '/')
+            .replace(/&nbsp;/g, ' ')
+            // 清理多余的空行
+            .replace(/\n\s*\n\s*\n/g, '\n\n')
+            .trim();
     }
 }
 
@@ -330,7 +547,7 @@ class InteractiveAIPlugin extends Plugin {
                     new Notice('请先选择文本');
                 }
             },
-            hotkeys: [{ modifiers: ["Mod", "Shift"], key: "i" }]
+            hotkeys: [{ modifiers: ["Mod", "Alt"], key: "i" }]
         });
 
         // 注册编辑器菜单事件
