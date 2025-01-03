@@ -1,27 +1,24 @@
-# Obsidian plugin data files
-.obsidian/plugins/interactive-ai/data.json
+# npm
+node_modules/
+package-lock.json
 
-# Environment files
-.env
-*.env
+# macOS
+.DS_Store
 
-# Python virtual environment
-venv/
-env/
-__pycache__/
-*.pyc
+# Obsidian
+.obsidian/workspace.json
+.obsidian/workspace
+.obsidian/workspace.json
+.obsidian/cache
+.obsidian/plugins/*/data.json
 
-# IDE files
-.vscode/
+# IDE
 .idea/
+.vscode/
+
+# Build
+dist/
+build/
 
 # Logs
-*.log
-
-# Test files
-test_api.py
-
-# Temporary files
-*.tmp
-*~
-.DS_Store 
+*.log 
