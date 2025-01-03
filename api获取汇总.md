@@ -68,3 +68,6 @@ API定价信息：https://dashscope.console.aliyun.com/billing
 # 豆包
 火山方舟
 https://console.volcengine.com/ark/region:ark+cn-beijing/experience/chat
+
+教程
+https://blog.csdn.net/weixin_61644243/article/details/143108764

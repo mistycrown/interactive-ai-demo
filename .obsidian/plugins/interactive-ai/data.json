@@ -11,6 +11,15 @@
     "apiKey": "sk-86e89b45781f49b1a759df7a9a42752c",
     "baseUrl": "https://api.deepseek.com"
   },
+  "doubaoConfig": {
+    "enabled": true,
+    "apiKey": "47418a3c-6816-498f-a511-2699c5562137",
+    "baseUrl": "https://ark.cn-beijing.volces.com/api/v3",
+    "model": "ep-20250103160403-qgv7p",
+    "endpointId": "ep-20250103160403-qgv7p",
+    "accessKey": "api-key-20250103151005",
+    "secretKey": "47418a3c-6816-498f-a511-2699c5562137"
+  },
   "moonshotConfig": {
     "enabled": true,
     "apiKey": "sk-hxVxiPxSuUsxqkUHbMTmVtTaVjHpIPnVDM9toGKbrGX30S7B",
@@ -29,7 +38,7 @@
     "baseUrl": "https://dashscope.aliyuncs.com/compatible-mode/v1",
     "model": "qwen-turbo"
   },
-  "currentModel": "deepseek",
+  "currentModel": "doubao",
   "qaFormat": {
     "template": "> [!tip] {{question}}\n> {{answer}}",
     "questionPlaceholder": "{{question}}",

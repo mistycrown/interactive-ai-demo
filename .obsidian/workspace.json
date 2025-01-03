@@ -97,12 +97,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "豆包api 文档.md",
+                "file": "需求.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "豆包api 文档"
+              "title": "需求"
             }
           }
         ],
@@ -259,9 +259,11 @@
   },
   "active": "a5e534a5c6a7c5e4",
   "lastOpenFiles": [
+    "test_doubao_api.py",
+    "test_api.py",
     "api获取汇总.md",
-    "豆包api 文档.md",
     "需求.md",
+    "豆包api 文档.md",
     "deepseek api文档.md",
     "通义千问api 文档.md",
     "智谱api 调用文档.md",

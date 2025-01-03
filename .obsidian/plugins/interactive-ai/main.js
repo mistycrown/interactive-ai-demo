@@ -20,9 +20,12 @@ const DEFAULT_SETTINGS = {
     // 豆包设置
     doubaoConfig: {
         enabled: false,
-        apiKey: '',
-        baseUrl: 'https://ark.cn-beijing.volces.com/api/v3',
-        model: 'ep-2024'
+        accessKey: '',  // VOLC_ACCESSKEY
+        secretKey: '',  // VOLC_SECRETKEY
+        baseUrl: 'https://ark-cn-beijing.bytedance.net/api/v3',
+        model: '',  // endpoint ID
+        endpointId: '',  // endpoint ID
+        region: 'cn-beijing'  // 指定区域
     },
     // Moonshot设置
     moonshotConfig: {
@@ -66,4 +69,1598 @@ const DEFAULT_SETTINGS = {
     ]
 }
 
-[... rest of the file remains exactly the same ...] 
+// 侧边栏视图类
+class InteractiveAIView extends ItemView {
+    constructor(leaf, plugin) {
+        super(leaf);
+        this.plugin = plugin;
+        this.cards = [];
+    }
+
+    getViewType() {
+        return 'interactive-ai-view';
+    }
+
+    getDisplayText() {
+        return 'Interactive AI';
+    }
+
+    async onOpen() {
+        const container = this.containerEl.children[1];
+        container.empty();
+        container.classList.add('interactive-ai-container');
+    }
+
+    // 创建新的卡片
+    createCard(question, answer, sourceInfo) {
+        console.log('创建新卡片 - 问题:', question);
+        console.log('创建新卡片 - 回答:', answer);
+        console.log('创建新卡片 - 源信息:', sourceInfo);
+
+        const container = this.containerEl.children[1];
+        if (!container) {
+            console.error('找不到容器元素');
+            return;
+        }
+
+        const cardEl = container.createDiv('interactive-ai-card');
+        console.log('卡片元素已创建');
+
+        // 保存源信息
+        cardEl.sourceInfo = sourceInfo;
+
+        // 关闭按钮
+        const closeButton = cardEl.createDiv('interactive-ai-close');
+        closeButton.setText('×');
+        closeButton.addEventListener('click', () => {
+            console.log('关闭卡片');
+            cardEl.remove();
+            const index = this.cards.indexOf(cardEl);
+            if (index > -1) {
+                this.cards.splice(index, 1);
+            }
+        });
+
+        // 问题部分
+        const questionEl = cardEl.createDiv('interactive-ai-question');
+        const questionContent = questionEl.createDiv('interactive-ai-question-content');
+        questionContent.setText(question);
+
+        // 检查问题内容是否超过一行
+        setTimeout(() => {
+            if (questionContent.scrollHeight > questionContent.clientHeight) {
+                // 问题内容超过一行，添加展开/折叠功能
+                questionEl.addClass('expandable');
+                const toggleButton = questionEl.createDiv('interactive-ai-toggle');
+                toggleButton.setText('展开');
+                
+                let isExpanded = false;
+                toggleButton.addEventListener('click', () => {
+                    isExpanded = !isExpanded;
+                    questionContent.style.maxHeight = isExpanded ? questionContent.scrollHeight + 'px' : '1.5em';
+                    toggleButton.setText(isExpanded ? '折叠' : '展开');
+                });
+            }
+        }, 0);
+
+        // 回答部分
+        const answerEl = cardEl.createDiv('interactive-ai-answer');
+        const answerText = answerEl.createEl('div', {
+            text: answer || '正在思考...',
+            attr: {
+                style: 'user-select: text; cursor: text;'
+            }
+        });
+
+        // 按钮容器
+        const buttonsEl = cardEl.createDiv('interactive-ai-buttons');
+
+        // 替代按钮
+        const replaceButton = this.createButton(buttonsEl, '替代', async () => {
+            console.log('点击替代按钮');
+            if (cardEl.sourceInfo) {
+                const view = this.plugin.app.workspace.getActiveViewOfType(MarkdownView);
+                if (view && view.file.path === cardEl.sourceInfo.filePath) {
+                    // 如果当前打开的文件就是源文件
+                    const editor = view.editor;
+                    const from = cardEl.sourceInfo.from;
+                    const to = cardEl.sourceInfo.to;
+                    editor.setSelection(from, to);
+                    editor.replaceSelection(answerEl.getText());
+                    new Notice('已替换选中文本');
+                } else {
+                    // 需要先打开源文件
+                    const file = this.plugin.app.vault.getAbstractFileByPath(cardEl.sourceInfo.filePath);
+                    if (file) {
+                        await this.plugin.app.workspace.getLeaf().openFile(file);
+                        const view = this.plugin.app.workspace.getActiveViewOfType(MarkdownView);
+                        if (view) {
+                            const editor = view.editor;
+                            const from = cardEl.sourceInfo.from;
+                            const to = cardEl.sourceInfo.to;
+                            editor.setSelection(from, to);
+                            editor.replaceSelection(answerEl.getText());
+                            new Notice('已替换选中文本');
+                        }
+                    }
+                }
+            } else {
+                new Notice('无法找到原始文本位置');
+            }
+        });
+
+        // 追加按钮
+        const appendButton = this.createButton(buttonsEl, '追加', async () => {
+            console.log('点击追加按钮');
+            if (cardEl.sourceInfo) {
+                const view = this.plugin.app.workspace.getActiveViewOfType(MarkdownView);
+                if (view && view.file.path === cardEl.sourceInfo.filePath) {
+                    const editor = view.editor;
+                    const to = cardEl.sourceInfo.to;
+                    editor.setCursor(to);
+                    editor.replaceRange('\n' + answerEl.getText(), to);
+                    new Notice('已在原文后追加');
+                } else {
+                    const file = this.plugin.app.vault.getAbstractFileByPath(cardEl.sourceInfo.filePath);
+                    if (file) {
+                        await this.plugin.app.workspace.getLeaf().openFile(file);
+                        const view = this.plugin.app.workspace.getActiveViewOfType(MarkdownView);
+                        if (view) {
+                            const editor = view.editor;
+                            const to = cardEl.sourceInfo.to;
+                            editor.setCursor(to);
+                            editor.replaceRange('\n' + answerEl.getText(), to);
+                            new Notice('已在原文后追加');
+                        }
+                    }
+                }
+            } else {
+                new Notice('无法找到原始文本位置');
+            }
+        });
+
+        // 问答按钮
+        const qaButton = this.createButton(buttonsEl, '问答', async () => {
+            console.log('点击问答按钮');
+            if (cardEl.sourceInfo) {
+                const view = this.plugin.app.workspace.getActiveViewOfType(MarkdownView);
+                if (view && view.file.path === cardEl.sourceInfo.filePath) {
+                    const editor = view.editor;
+                    const from = cardEl.sourceInfo.from;
+                    const to = cardEl.sourceInfo.to;
+                    editor.setSelection(from, to);
+                    
+                    // 使用自定义问答格式
+                    const format = this.plugin.settings.qaFormat.template
+                        .replace(this.plugin.settings.qaFormat.questionPlaceholder, question)
+                        .replace(this.plugin.settings.qaFormat.answerPlaceholder, answerEl.getText());
+                    
+                    editor.replaceSelection(format);
+                    new Notice('已插入问答格式');
+                } else {
+                    const file = this.plugin.app.vault.getAbstractFileByPath(cardEl.sourceInfo.filePath);
+                    if (file) {
+                        await this.plugin.app.workspace.getLeaf().openFile(file);
+                        const view = this.plugin.app.workspace.getActiveViewOfType(MarkdownView);
+                        if (view) {
+                            const editor = view.editor;
+                            const from = cardEl.sourceInfo.from;
+                            const to = cardEl.sourceInfo.to;
+                            editor.setSelection(from, to);
+                            
+                            // 使用自定义问答格式
+                            const format = this.plugin.settings.qaFormat.template
+                                .replace(this.plugin.settings.qaFormat.questionPlaceholder, question)
+                                .replace(this.plugin.settings.qaFormat.answerPlaceholder, answerEl.getText());
+                            
+                            editor.replaceSelection(format);
+                            new Notice('已插入问答格式');
+                        }
+                    }
+                }
+            } else {
+                new Notice('无法找到原始文本位置');
+            }
+        });
+
+        // 将新卡片插入到容器的最前面
+        if (container.firstChild) {
+            console.log('插入到第一个位置');
+            container.insertBefore(cardEl, container.firstChild);
+        } else {
+            console.log('添加到容器末尾');
+            container.appendChild(cardEl);
+        }
+
+        this.cards.push(cardEl);
+        console.log('卡片创建完成');
+        return cardEl;
+    }
+
+    // 更新卡片内容
+    updateCardContent(cardEl, content) {
+        const answerEl = cardEl.querySelector('.interactive-ai-answer div');
+        if (answerEl) {
+            answerEl.setText(content);
+        }
+    }
+
+    // 创建按钮
+    createButton(container, text, callback) {
+        const button = container.createEl('button', {
+            text: text,
+            cls: 'interactive-ai-button'
+        });
+        button.addEventListener('click', callback);
+        return button;
+    }
+}
+
+class InteractiveAIPlugin extends Plugin {
+    async onload() {
+        await this.loadSettings();
+
+        // 注册视图
+        this.registerView(
+            'interactive-ai-view',
+            (leaf) => (this.view = new InteractiveAIView(leaf, this))
+        );
+
+        // 添加插件设置选项卡
+        this.addSettingTab(new InteractiveAISettingTab(this.app, this));
+
+        // 添加命令 - 打开AI助手侧边栏
+        this.addCommand({
+            id: 'open-interactive-ai',
+            name: '打开AI助手侧边栏',
+            callback: () => {
+                this.activateView();
+            }
+        });
+
+        // 添加命令 - 处理选中文本
+        this.addCommand({
+            id: 'process-selected-text',
+            name: '发送选中文本到AI',
+            editorCallback: (editor) => {
+                const selectedText = editor.getSelection();
+                if (selectedText) {
+                    this.processSelectedText(selectedText);
+                } else {
+                    new Notice('请先选择文本');
+                }
+            },
+            hotkeys: [{ modifiers: ["Mod", "Shift"], key: "i" }]
+        });
+
+        // 注册编辑器菜单事件
+        this.registerEvent(
+            this.app.workspace.on("editor-menu", (menu, editor) => {
+                const selectedText = editor.getSelection();
+                if (selectedText) {
+                    // 添加主菜单项
+                    menu.addItem((item) => {
+                        item.setTitle("Interactive AI")
+                            .setIcon("bot")
+                            .setSubmenu();  // 这会创建一个子菜单
+                    });
+
+                    // 获取最后添加的菜单项（即我们的主菜单项）
+                    const mainMenuItem = menu.items[menu.items.length - 1];
+                    const submenu = mainMenuItem.submenu;
+
+                    // 添加默认选项
+                    submenu.addItem((item) => {
+                        item.setTitle("直接发送")
+                            .setIcon("arrow-right")
+                            .onClick(async () => {
+                                await this.activateView();  // 先打开侧边栏
+                                await this.handlePromptSelection(selectedText, selectedText);
+                            });
+                    });
+
+                    // 添加分隔线
+                    submenu.addSeparator();
+
+                    // 添加自定义提示词选项
+                    this.settings.prompts.forEach(prompt => {
+                        submenu.addItem((item) => {
+                            item.setTitle(prompt.name)
+                                .onClick(async () => {
+                                    await this.activateView();  // 先打开侧边栏
+                                    const processedPrompt = prompt.prompt.replace('{{text}}', selectedText);
+                                    await this.handlePromptSelection(selectedText, processedPrompt);
+                                });
+                        });
+                    });
+                }
+            })
+        );
+
+        // 自动打开侧边栏
+        this.app.workspace.onLayoutReady(() => {
+            this.activateView();
+        });
+    }
+
+    async handlePromptSelection(originalText, promptText) {
+        // 保存当前编辑器的状态
+        const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+        const sourceInfo = view ? {
+            filePath: view.file.path,
+            from: view.editor.getCursor('from'),
+            to: view.editor.getCursor('to')
+        } : null;
+
+        // 创建卡片并发送请求
+        const card = this.view.createCard(originalText, '', sourceInfo);
+        await this.callAPI(promptText, (content) => {
+            if (card) {
+                this.view.updateCardContent(card, content);
+            }
+        });
+    }
+
+    async processSelectedText(text) {
+        console.log('开始处理选中文本:', text);
+
+        if (!this.settings.apiSecret) {
+            console.error('API密钥未配置');
+            new Notice('请先在设置中配置API密钥');
+            return;
+        }
+
+        try {
+            await this.handlePromptSelection(text, text);
+        } catch (error) {
+            console.error('API调用失败:', error);
+            new Notice('调用API失败: ' + error.message);
+        }
+    }
+
+    async activateView() {
+        const workspace = this.app.workspace;
+        if (workspace.getLeavesOfType('interactive-ai-view').length === 0) {
+            await workspace.getRightLeaf(false).setViewState({
+                type: 'interactive-ai-view',
+                active: true,
+            });
+        }
+    }
+
+    async onunload() {
+        this.app.workspace.detachLeavesOfType('interactive-ai-view');
+    }
+
+    // 替换选中的文本
+    async replaceSelectedText(text) {
+        const editor = this.getActiveEditor();
+        if (editor && editor.somethingSelected()) {
+            editor.replaceSelection(text);
+        }
+    }
+
+    // 在选中文本后追加
+    async appendToSelectedText(text) {
+        const editor = this.getActiveEditor();
+        if (editor && editor.somethingSelected()) {
+            const selection = editor.getSelection();
+            const cursor = editor.getCursor('to');
+            editor.replaceSelection(selection + '\n' + text);
+        }
+    }
+
+    // 插入问答格式
+    async insertAsQA(question, answer) {
+        const editor = this.getActiveEditor();
+        if (editor && editor.somethingSelected()) {
+            const qaFormat = `> [!question] 问题\n> ${question}\n\n> [!answer] 回答\n> ${answer}`;
+            editor.replaceSelection(qaFormat);
+        }
+    }
+
+    // 获取当前活动编辑器
+    getActiveEditor() {
+        const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+        return view ? view.editor : null;
+    }
+
+    async loadSettings() {
+        this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+    }
+
+    async saveSettings() {
+        await this.saveData(this.settings);
+    }
+
+    async callAPI(text, onUpdate) {
+        const model = this.settings.currentModel;
+        
+        if (model === 'spark' && this.settings.sparkConfig.enabled) {
+            return this.callSparkAPI(text, onUpdate);
+        } else if (model === 'deepseek' && this.settings.deepseekConfig.enabled) {
+            return this.callDeepSeekAPI(text, onUpdate);
+        } else if (model === 'moonshot' && this.settings.moonshotConfig.enabled) {
+            return this.callMoonshotAPI(text, onUpdate);
+        } else if (model === 'glm' && this.settings.glmConfig.enabled) {
+            return this.callGLMAPI(text, onUpdate);
+        } else if (model === 'qwen' && this.settings.qwenConfig.enabled) {
+            return this.callQwenAPI(text, onUpdate);
+        } else if (model === 'doubao' && this.settings.doubaoConfig.enabled) {
+            return this.callDoubaoAPI(text, onUpdate);
+        } else {
+            throw new Error('请先在设置中选择并配置要使用的模型');
+        }
+    }
+
+    async callDeepSeekAPI(text, onUpdate) {
+        if (!this.settings.deepseekConfig.apiKey) {
+            throw new Error('请先配置DeepSeek API Key');
+        }
+
+        const url = `${this.settings.deepseekConfig.baseUrl}/chat/completions`;
+        const headers = {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${this.settings.deepseekConfig.apiKey}`
+        };
+
+        const data = {
+            model: 'deepseek-chat',
+            messages: [
+                {
+                    role: 'system',
+                    content: 'You are a helpful assistant.'
+                },
+                {
+                    role: 'user',
+                    content: text
+                }
+            ],
+            stream: true
+        };
+
+        try {
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: headers,
+                body: JSON.stringify(data)
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let content = '';
+
+            while (true) {
+                const {value, done} = await reader.read();
+                if (done) break;
+
+                const chunk = decoder.decode(value);
+                const lines = chunk.split('\n');
+
+                for (const line of lines) {
+                    if (line.trim() === '') continue;
+                    if (line.includes('[DONE]')) continue;
+
+                    try {
+                        const jsonStr = line.replace(/^data: /, '');
+                        const response = JSON.parse(jsonStr);
+                        
+                        if (response.choices && response.choices[0].delta.content) {
+                            content += response.choices[0].delta.content;
+                            if (onUpdate) {
+                                onUpdate(content);
+                            }
+                        }
+                    } catch (e) {
+                        console.error('解析响应失败:', e);
+                    }
+                }
+            }
+
+            return {
+                choices: [
+                    {
+                        message: {
+                            content: content
+                        }
+                    }
+                ]
+            };
+        } catch (error) {
+            console.error('DeepSeek API调用失败:', error);
+            throw error;
+        }
+    }
+
+    async callMoonshotAPI(text, onUpdate) {
+        if (!this.settings.moonshotConfig.apiKey) {
+            throw new Error('请先配置Moonshot API Key');
+        }
+
+        const url = `${this.settings.moonshotConfig.baseUrl}/chat/completions`;
+        const headers = {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${this.settings.moonshotConfig.apiKey}`
+        };
+
+        const data = {
+            model: this.settings.moonshotConfig.model,
+            messages: [
+                {
+                    role: 'system',
+                    content: '你是 Kimi，由 Moonshot AI 提供的人工智能助手，你更擅长中文和英文的对话。你会为用户提供安全，有帮助，准确的回答。同时，你会拒绝一切涉及恐怖主义，种族歧视，黄色暴力等问题的回答。Moonshot AI 为专有名词，不可翻译成其他语言。'
+                },
+                {
+                    role: 'user',
+                    content: text
+                }
+            ],
+            temperature: 0.3,
+            stream: true
+        };
+
+        try {
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: headers,
+                body: JSON.stringify(data)
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let content = '';
+
+            while (true) {
+                const {value, done} = await reader.read();
+                if (done) break;
+
+                const chunk = decoder.decode(value);
+                const lines = chunk.split('\n');
+
+                for (const line of lines) {
+                    if (line.trim() === '') continue;
+                    if (line.includes('[DONE]')) continue;
+
+                    try {
+                        const jsonStr = line.replace(/^data: /, '');
+                        const response = JSON.parse(jsonStr);
+                        
+                        if (response.choices && response.choices[0].delta.content) {
+                            content += response.choices[0].delta.content;
+                            if (onUpdate) {
+                                onUpdate(content);
+                            }
+                        }
+                    } catch (e) {
+                        console.error('解析响应失败:', e);
+                    }
+                }
+            }
+
+            return {
+                choices: [
+                    {
+                        message: {
+                            content: content
+                        }
+                    }
+                ]
+            };
+        } catch (error) {
+            console.error('Moonshot API调用失败:', error);
+            throw error;
+        }
+    }
+
+    async callSparkAPI(text, onUpdate) {
+        if (!this.settings.sparkConfig.apiKey || !this.settings.sparkConfig.apiSecret || !this.settings.sparkConfig.appId) {
+            throw new Error('请先完成API配置');
+        }
+
+        // 根据模型版本获取对应的WebSocket URL
+        const getWebsocketUrl = () => {
+            const domain = this.settings.sparkConfig.domain;
+            switch (domain) {
+                case '4.0Ultra':
+                    return 'wss://spark-api.xf-yun.com/v4.0/chat';
+                case 'max-32k':
+                    return 'wss://spark-api.xf-yun.com/chat/max-32k';
+                case 'generalv3.5':
+                    return 'wss://spark-api.xf-yun.com/v3.5/chat';
+                case 'pro-128k':
+                    return 'wss://spark-api.xf-yun.com/chat/pro-128k';
+                case 'generalv3':
+                    return 'wss://spark-api.xf-yun.com/v3.1/chat';
+                case 'lite':
+                    return 'wss://spark-api.xf-yun.com/v1.1/chat';
+                default:
+                    throw new Error('未知的模型版本');
+            }
+        };
+
+        return new Promise((resolve, reject) => {
+            // 生成鉴权URL
+            const host = 'spark-api.xf-yun.com';
+            const date = new Date().toUTCString();
+            const path = '/v3.5/chat';
+
+            console.log('正在生成鉴权信息...');
+            console.log('Host:', host);
+            console.log('Date:', date);
+            console.log('Path:', path);
+
+            // 生成签名字符串
+            const tmp = [
+                `host: ${host}`,
+                `date: ${date}`,
+                `GET ${path} HTTP/1.1`
+            ].join('\n');
+
+            console.log('签名字符串:', tmp);
+
+            // 使用HMAC-SHA256算法结合APISecret对tmp签名
+            const encoder = new TextEncoder();
+            const keyData = encoder.encode(this.settings.apiSecret);
+            const dataData = encoder.encode(tmp);
+            
+            crypto.subtle.importKey(
+                'raw',
+                keyData,
+                { name: 'HMAC', hash: 'SHA-256' },
+                false,
+                ['sign']
+            ).then(cryptoKey => {
+                console.log('密钥已生成');
+                return crypto.subtle.sign(
+                    'HMAC',
+                    cryptoKey,
+                    dataData
+                );
+            }).then(signature => {
+                const signatureBase64 = btoa(String.fromCharCode.apply(null, new Uint8Array(signature)));
+                console.log('签名已生成:', signatureBase64);
+
+                // 组装authorization_origin
+                const authorization_origin = `api_key="${this.settings.apiKey}", algorithm="hmac-sha256", headers="host date request-line", signature="${signatureBase64}"`;
+                console.log('Authorization Origin:', authorization_origin);
+                
+                // 生成最终的authorization
+                const authorization = btoa(authorization_origin);
+                console.log('最终Authorization:', authorization);
+
+                // 构建WebSocket URL
+                const params = new URLSearchParams({
+                    authorization: authorization,
+                    date: date,
+                    host: host
+                });
+
+                const wsUrl = `wss://${host}${path}?${params.toString()}`;
+                console.log('WebSocket URL:', wsUrl);
+
+                const ws = new WebSocket(wsUrl);
+                let responseText = '';
+
+                ws.onopen = () => {
+                    console.log('WebSocket连接已建立，准备发送数据...');
+                    const data = {
+                        header: {
+                            app_id: this.settings.appId,
+                            uid: "default"
+                        },
+                        parameter: {
+                            chat: {
+                                domain: this.settings.domain,
+                                temperature: 0.5,
+                                max_tokens: 4096
+                            }
+                        },
+                        payload: {
+                            message: {
+                                text: [
+                                    {
+                                        role: "user",
+                                        content: text
+                                    }
+                                ]
+                            }
+                        }
+                    };
+
+                    console.log('发送数据:', JSON.stringify(data, null, 2));
+                    ws.send(JSON.stringify(data));
+                };
+
+                ws.onmessage = (event) => {
+                    console.log('收到消息:', event.data);
+                    try {
+                        // 检查是否是[DONE]消息
+                        if (event.data === 'data:[DONE]') {
+                            console.log('收到结束标记，关闭连接');
+                            ws.close();
+                            resolve({
+                                choices: [
+                                    {
+                                        message: {
+                                            content: responseText
+                                        }
+                                    }
+                                ]
+                            });
+                            return;
+                        }
+
+                        // 解析data:前缀
+                        const jsonStr = event.data.replace(/^data: /, '');
+                        const response = JSON.parse(jsonStr);
+                        console.log('解析后的响应:', response);
+
+                        // 检查是否有错误
+                        if (response.header && response.header.code !== 0) {
+                            console.error('API返回错误:', response.header);
+                            ws.close();
+                            reject(new Error(response.header.message || '未知错误'));
+                            return;
+                        }
+
+                        // 累积响应文本
+                        if (response.payload && response.payload.choices && response.payload.choices.text) {
+                            const content = response.payload.choices.text[0].content;
+                            console.log('收到内容:', content);
+                            responseText += content;
+                            // 调用更新回调
+                            if (onUpdate) {
+                                onUpdate(responseText);
+                            }
+                        }
+                    } catch (error) {
+                        console.error('解析响应失败:', error, '原始数据:', event.data);
+                    }
+                };
+
+                ws.onerror = (error) => {
+                    console.error('WebSocket错误:', error);
+                    reject(new Error('WebSocket连接错误'));
+                };
+
+                ws.onclose = (event) => {
+                    console.log('WebSocket连接已关闭', event.code, event.reason);
+                    if (!responseText) {
+                        reject(new Error('连接关闭但未收到响应'));
+                    }
+                };
+
+                // 设置超时
+                setTimeout(() => {
+                    if (ws.readyState === WebSocket.OPEN) {
+                        console.log('连接超时，强制关闭');
+                        ws.close();
+                        reject(new Error('连接超时'));
+                    }
+                }, 30000); // 30秒超时
+            }).catch(error => {
+                console.error('处理过程中出错:', error);
+                reject(error);
+            });
+        });
+    }
+
+    async callGLMAPI(text, onUpdate) {
+        if (!this.settings.glmConfig.apiKey) {
+            throw new Error('请先配置智谱GLM API Key');
+        }
+
+        const url = `${this.settings.glmConfig.baseUrl}/chat/completions`;
+        const headers = {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${this.settings.glmConfig.apiKey}`
+        };
+
+        const data = {
+            model: this.settings.glmConfig.model,
+            messages: [
+                {
+                    role: 'system',
+                    content: '你是一个乐于回答各种问题的小助手，你的任务是提供专业、准确、有洞察力的建议。'
+                },
+                {
+                    role: 'user',
+                    content: text
+                }
+            ],
+            temperature: 0.3,
+            stream: true
+        };
+
+        try {
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: headers,
+                body: JSON.stringify(data)
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let content = '';
+
+            while (true) {
+                const {value, done} = await reader.read();
+                if (done) break;
+
+                const chunk = decoder.decode(value);
+                const lines = chunk.split('\n');
+
+                for (const line of lines) {
+                    if (line.trim() === '') continue;
+                    if (line.includes('[DONE]')) continue;
+
+                    try {
+                        const jsonStr = line.replace(/^data: /, '');
+                        const response = JSON.parse(jsonStr);
+                        
+                        if (response.choices && response.choices[0].delta && response.choices[0].delta.content) {
+                            content += response.choices[0].delta.content;
+                            if (onUpdate) {
+                                onUpdate(content);
+                            }
+                        }
+                    } catch (e) {
+                        console.error('解析响应失败:', e);
+                    }
+                }
+            }
+
+            return {
+                choices: [
+                    {
+                        message: {
+                            content: content
+                        }
+                    }
+                ]
+            };
+        } catch (error) {
+            console.error('智谱GLM API调用失败:', error);
+            throw error;
+        }
+    }
+
+    async callQwenAPI(text, onUpdate) {
+        if (!this.settings.qwenConfig.apiKey) {
+            throw new Error('请先配置通义千问 API Key');
+        }
+
+        const url = `${this.settings.qwenConfig.baseUrl}/chat/completions`;
+        const headers = {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${this.settings.qwenConfig.apiKey}`
+        };
+
+        const data = {
+            model: this.settings.qwenConfig.model,
+            messages: [
+                {
+                    role: 'system',
+                    content: 'You are a helpful assistant.'
+                },
+                {
+                    role: 'user',
+                    content: text
+                }
+            ],
+            temperature: 0.3,
+            stream: true,
+            stream_options: {
+                "include_usage": true
+            }
+        };
+
+        try {
+            console.log('发送请求到通义千问API:', url);
+            console.log('请求头:', headers);
+            console.log('请求数据:', data);
+
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: headers,
+                body: JSON.stringify(data)
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                console.error('通义千问API错误响应:', errorText);
+                throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
+            }
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let content = '';
+
+            while (true) {
+                const {value, done} = await reader.read();
+                if (done) break;
+
+                const chunk = decoder.decode(value);
+                const lines = chunk.split('\n');
+
+                for (const line of lines) {
+                    if (line.trim() === '') continue;
+                    if (line.includes('[DONE]')) continue;
+
+                    try {
+                        const jsonStr = line.replace(/^data: /, '');
+                        const response = JSON.parse(jsonStr);
+                        console.log('通义千问API返回数据:', response);
+                        
+                        if (response.choices && response.choices[0]) {
+                            if (response.choices[0].delta && response.choices[0].delta.content) {
+                                content += response.choices[0].delta.content;
+                            } else if (response.choices[0].message && response.choices[0].message.content) {
+                                content += response.choices[0].message.content;
+                            }
+                            
+                            if (onUpdate) {
+                                onUpdate(content);
+                            }
+                        }
+
+                        // 如果有usage信息，记录到日志
+                        if (response.usage) {
+                            console.log('Token使用情况:', response.usage);
+                        }
+                    } catch (e) {
+                        console.error('解析响应失败:', e, '原始数据:', line);
+                    }
+                }
+            }
+
+            return {
+                choices: [
+                    {
+                        message: {
+                            content: content
+                        }
+                    }
+                ]
+            };
+        } catch (error) {
+            console.error('通义千问API调用失败:', error);
+            throw error;
+        }
+    }
+
+    // 添加代理处理函数
+    async handleProxyRequest(apiUrl, options) {
+        const corsHeaders = {
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Methods': 'GET,HEAD,POST,OPTIONS',
+            'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+            'Access-Control-Max-Age': '86400'
+        };
+
+        // 创建新的请求对象
+        const request = new Request(apiUrl, {
+            ...options,
+            headers: {
+                ...options.headers,
+                'Origin': new URL(apiUrl).origin
+            }
+        });
+
+        // 发送请求
+        const response = await fetch(request);
+        
+        // 创建新的响应对象
+        return new Response(response.body, {
+            ...response,
+            headers: {
+                ...response.headers,
+                ...corsHeaders
+            }
+        });
+    }
+
+    async callDoubaoAPI(text, onUpdate) {
+        if (!this.settings.doubaoConfig.secretKey) {
+            throw new Error('请先配置豆包 Secret Key');
+        }
+
+        const https = require('https');
+        const fullUrl = `${this.settings.doubaoConfig.baseUrl}/chat/completions`;
+        const url = new URL(fullUrl);
+        
+        const data = {
+            model: this.settings.doubaoConfig.endpointId,
+            messages: [
+                {
+                    role: 'system',
+                    content: '你是豆包，是由字节跳动开发的 AI 人工智能助手'
+                },
+                {
+                    role: 'user',
+                    content: text
+                }
+            ],
+            temperature: 0.3,
+            stream: true
+        };
+
+        // 确保region有值
+        const region = this.settings.doubaoConfig.region || 'cn-beijing';
+
+        const options = {
+            hostname: url.hostname,
+            path: url.pathname,
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${this.settings.doubaoConfig.secretKey}`,
+                'X-Region': region
+            }
+        };
+
+        console.log('完整URL:', fullUrl);
+        console.log('hostname:', options.hostname);
+        console.log('path:', options.path);
+        console.log('Region:', region);
+        console.log('EndpointId:', this.settings.doubaoConfig.endpointId);
+
+        return new Promise((resolve, reject) => {
+            try {
+                console.log('发送请求到豆包API:', url.toString());
+                console.log('请求头:', options.headers);
+                console.log('请求数据:', data);
+
+                const req = https.request(options, (res) => {
+                    if (res.statusCode !== 200) {
+                        let errorData = '';
+                        res.on('data', (chunk) => {
+                            errorData += chunk;
+                        });
+                        res.on('end', () => {
+                            console.error('豆包API错误响应:', {
+                                statusCode: res.statusCode,
+                                headers: res.headers,
+                                body: errorData
+                            });
+                            reject(new Error(`HTTP error! status: ${res.statusCode}, body: ${errorData}`));
+                        });
+                        return;
+                    }
+
+                    let content = '';
+                    res.setEncoding('utf8');
+
+                    res.on('data', (chunk) => {
+                        const lines = chunk.split('\n');
+                        for (const line of lines) {
+                            if (line.trim() === '') continue;
+                            if (line.includes('[DONE]')) continue;
+
+                            try {
+                                const jsonStr = line.replace(/^data: /, '');
+                                const response = JSON.parse(jsonStr);
+                                console.log('豆包API返回数据:', response);
+                                
+                                if (response.choices && response.choices[0]) {
+                                    if (response.choices[0].delta && response.choices[0].delta.content) {
+                                        content += response.choices[0].delta.content;
+                                    } else if (response.choices[0].message && response.choices[0].message.content) {
+                                        content += response.choices[0].message.content;
+                                    }
+                                    
+                                    if (onUpdate) {
+                                        onUpdate(content);
+                                    }
+                                }
+
+                                if (response.usage) {
+                                    console.log('Token使用情况:', response.usage);
+                                }
+                            } catch (e) {
+                                console.error('解析响应失败:', e, '原始数据:', line);
+                            }
+                        }
+                    });
+
+                    res.on('end', () => {
+                        resolve({
+                            choices: [
+                                {
+                                    message: {
+                                        content: content
+                                    }
+                                }
+                            ]
+                        });
+                    });
+                });
+
+                req.on('error', (error) => {
+                    console.error('请求错误:', error);
+                    reject(error);
+                });
+
+                req.write(JSON.stringify(data));
+                req.end();
+            } catch (error) {
+                console.error('豆包API调用失败:', error);
+                reject(error);
+            }
+        });
+    }
+}
+
+class InteractiveAISettingTab extends PluginSettingTab {
+    constructor(app, plugin) {
+        super(app, plugin);
+        this.plugin = plugin;
+    }
+
+    display() {
+        const {containerEl} = this;
+        containerEl.empty();
+        containerEl.createEl('h2', {text: 'Interactive AI 设置'});
+
+        // 模型选择
+        new Setting(containerEl)
+            .setName('选择使用的模型')
+            .setDesc('选择要使用的AI模型')
+            .addDropdown(dropdown => dropdown
+                .addOption('spark', '讯飞星火')
+                .addOption('deepseek', 'DeepSeek')
+                .addOption('moonshot', 'Moonshot')
+                .addOption('glm', '智谱GLM')
+                .addOption('qwen', '通义千问')
+                .addOption('doubao', '豆包')
+                .setValue(this.plugin.settings.currentModel)
+                .onChange(async (value) => {
+                    this.plugin.settings.currentModel = value;
+                    await this.plugin.saveSettings();
+                    // 刷新设置页面以显示/隐藏相应的设置项
+                    this.display();
+                }));
+
+        // 讯飞星火设置
+        if (this.plugin.settings.currentModel === 'spark') {
+            containerEl.createEl('h3', {text: '讯飞星火设置'});
+            
+            new Setting(containerEl)
+                .setName('启用讯飞星火')
+                .addToggle(toggle => toggle
+                    .setValue(this.plugin.settings.sparkConfig.enabled)
+                    .onChange(async (value) => {
+                        this.plugin.settings.sparkConfig.enabled = value;
+                        await this.plugin.saveSettings();
+                        this.display();
+                    }));
+
+            if (this.plugin.settings.sparkConfig.enabled) {
+                new Setting(containerEl)
+                    .setName('App ID')
+                    .setDesc('请输入您的讯飞星火 App ID')
+                    .addText(text => text
+                        .setPlaceholder('输入App ID')
+                        .setValue(this.plugin.settings.sparkConfig.appId)
+                        .onChange(async (value) => {
+                            this.plugin.settings.sparkConfig.appId = value;
+                            await this.plugin.saveSettings();
+                        }));
+
+                new Setting(containerEl)
+                    .setName('API Key')
+                    .setDesc('请输入您的讯飞星火 API Key')
+                    .addText(text => text
+                        .setPlaceholder('输入API Key')
+                        .setValue(this.plugin.settings.sparkConfig.apiKey)
+                        .onChange(async (value) => {
+                            this.plugin.settings.sparkConfig.apiKey = value;
+                            await this.plugin.saveSettings();
+                        }));
+
+                new Setting(containerEl)
+                    .setName('API Secret')
+                    .setDesc('请输入您的讯飞星火 API Secret')
+                    .addText(text => text
+                        .setPlaceholder('输入API Secret')
+                        .setValue(this.plugin.settings.sparkConfig.apiSecret)
+                        .onChange(async (value) => {
+                            this.plugin.settings.sparkConfig.apiSecret = value;
+                            await this.plugin.saveSettings();
+                        }));
+
+                new Setting(containerEl)
+                    .setName('模型版本')
+                    .setDesc('选择讯飞星火模型版本')
+                    .addDropdown(dropdown => dropdown
+                        .addOption('4.0Ultra', 'Spark 4.0 Ultra')
+                        .addOption('max-32k', 'Spark Max-32K')
+                        .addOption('generalv3.5', 'Spark Max')
+                        .addOption('pro-128k', 'Spark Pro-128K')
+                        .addOption('generalv3', 'Spark Pro')
+                        .addOption('lite', 'Spark Lite')
+                        .setValue(this.plugin.settings.sparkConfig.domain)
+                        .onChange(async (value) => {
+                            this.plugin.settings.sparkConfig.domain = value;
+                            await this.plugin.saveSettings();
+                        }));
+            }
+        }
+
+        // DeepSeek设置
+        if (this.plugin.settings.currentModel === 'deepseek') {
+            containerEl.createEl('h3', {text: 'DeepSeek设置'});
+            
+            new Setting(containerEl)
+                .setName('启用DeepSeek')
+                .addToggle(toggle => toggle
+                    .setValue(this.plugin.settings.deepseekConfig.enabled)
+                    .onChange(async (value) => {
+                        this.plugin.settings.deepseekConfig.enabled = value;
+                        await this.plugin.saveSettings();
+                        this.display();
+                    }));
+
+            if (this.plugin.settings.deepseekConfig.enabled) {
+                new Setting(containerEl)
+                    .setName('API Key')
+                    .setDesc('请输入您的DeepSeek API Key')
+                    .addText(text => text
+                        .setPlaceholder('输入API Key')
+                        .setValue(this.plugin.settings.deepseekConfig.apiKey)
+                        .onChange(async (value) => {
+                            this.plugin.settings.deepseekConfig.apiKey = value;
+                            await this.plugin.saveSettings();
+                        }));
+
+                new Setting(containerEl)
+                    .setName('API Base URL')
+                    .setDesc('DeepSeek API的基础URL')
+                    .addText(text => text
+                        .setPlaceholder('https://api.deepseek.com')
+                        .setValue(this.plugin.settings.deepseekConfig.baseUrl)
+                        .onChange(async (value) => {
+                            this.plugin.settings.deepseekConfig.baseUrl = value;
+                            await this.plugin.saveSettings();
+                        }));
+            }
+        }
+
+        // Moonshot设置
+        if (this.plugin.settings.currentModel === 'moonshot') {
+            containerEl.createEl('h3', {text: 'Moonshot设置'});
+            
+            new Setting(containerEl)
+                .setName('启用Moonshot')
+                .addToggle(toggle => toggle
+                    .setValue(this.plugin.settings.moonshotConfig.enabled)
+                    .onChange(async (value) => {
+                        this.plugin.settings.moonshotConfig.enabled = value;
+                        await this.plugin.saveSettings();
+                        this.display();
+                    }));
+
+            if (this.plugin.settings.moonshotConfig.enabled) {
+                new Setting(containerEl)
+                    .setName('API Key')
+                    .setDesc('请输入您的Moonshot API Key')
+                    .addText(text => text
+                        .setPlaceholder('输入API Key')
+                        .setValue(this.plugin.settings.moonshotConfig.apiKey)
+                        .onChange(async (value) => {
+                            this.plugin.settings.moonshotConfig.apiKey = value;
+                            await this.plugin.saveSettings();
+                        }));
+
+                new Setting(containerEl)
+                    .setName('API Base URL')
+                    .setDesc('Moonshot API的基础URL')
+                    .addText(text => text
+                        .setPlaceholder('https://api.moonshot.cn/v1')
+                        .setValue(this.plugin.settings.moonshotConfig.baseUrl)
+                        .onChange(async (value) => {
+                            this.plugin.settings.moonshotConfig.baseUrl = value;
+                            await this.plugin.saveSettings();
+                        }));
+
+                new Setting(containerEl)
+                    .setName('模型版本')
+                    .setDesc('选择Moonshot模型版本')
+                    .addDropdown(dropdown => dropdown
+                        .addOption('moonshot-v1-8k', 'Moonshot v1-8k')
+                        .addOption('moonshot-v1-16k', 'Moonshot v1-16k')
+                        .addOption('moonshot-v1-32k', 'Moonshot v1-32k')
+                        .addOption('moonshot-v1-64k', 'Moonshot v1-64k')
+                        .addOption('moonshot-v1-128k', 'Moonshot v1-128k')
+                        .addOption('moonshot-v1-256k', 'Moonshot v1-256k')
+                        .addOption('moonshot-v1-512k', 'Moonshot v1-512k')
+                        .addOption('moonshot-v1-1024k', 'Moonshot v1-1024k')
+                        .setValue(this.plugin.settings.moonshotConfig.model)
+                        .onChange(async (value) => {
+                            this.plugin.settings.moonshotConfig.model = value;
+                            await this.plugin.saveSettings();
+                        }));
+            }
+        }
+
+        // 智谱GLM设置
+        if (this.plugin.settings.currentModel === 'glm') {
+            containerEl.createEl('h3', {text: '智谱GLM设置'});
+            
+            new Setting(containerEl)
+                .setName('启用智谱GLM')
+                .addToggle(toggle => toggle
+                    .setValue(this.plugin.settings.glmConfig.enabled)
+                    .onChange(async (value) => {
+                        this.plugin.settings.glmConfig.enabled = value;
+                        await this.plugin.saveSettings();
+                        this.display();
+                    }));
+
+            if (this.plugin.settings.glmConfig.enabled) {
+                new Setting(containerEl)
+                    .setName('API Key')
+                    .setDesc('请输入您的智谱GLM API Key')
+                    .addText(text => text
+                        .setPlaceholder('输入API Key')
+                        .setValue(this.plugin.settings.glmConfig.apiKey)
+                        .onChange(async (value) => {
+                            this.plugin.settings.glmConfig.apiKey = value;
+                            await this.plugin.saveSettings();
+                        }));
+
+                new Setting(containerEl)
+                    .setName('API Base URL')
+                    .setDesc('智谱GLM API的基础URL')
+                    .addText(text => text
+                        .setPlaceholder('https://open.bigmodel.cn/api/paas/v4')
+                        .setValue(this.plugin.settings.glmConfig.baseUrl)
+                        .onChange(async (value) => {
+                            this.plugin.settings.glmConfig.baseUrl = value;
+                            await this.plugin.saveSettings();
+                        }));
+
+                new Setting(containerEl)
+                    .setName('模型版本')
+                    .setDesc('选择智谱GLM模型版本')
+                    .addDropdown(dropdown => dropdown
+                        .addOption('glm-4-plus', 'GLM-4 Plus')
+                        .addOption('glm-4-0520', 'GLM-4 0520')
+                        .addOption('glm-4-air', 'GLM-4 Air')
+                        .addOption('glm-4-airx', 'GLM-4 AirX')
+                        .addOption('glm-4-long', 'GLM-4 Long')
+                        .addOption('glm-4-flashx', 'GLM-4 FlashX')
+                        .addOption('glm-4-flash', 'GLM-4 Flash')
+                        .setValue(this.plugin.settings.glmConfig.model)
+                        .onChange(async (value) => {
+                            this.plugin.settings.glmConfig.model = value;
+                            await this.plugin.saveSettings();
+                        }));
+            }
+        }
+
+        // 通义千问设置
+        if (this.plugin.settings.currentModel === 'qwen') {
+            containerEl.createEl('h3', {text: '通义千问设置'});
+            
+            new Setting(containerEl)
+                .setName('启用通义千问')
+                .addToggle(toggle => toggle
+                    .setValue(this.plugin.settings.qwenConfig.enabled)
+                    .onChange(async (value) => {
+                        this.plugin.settings.qwenConfig.enabled = value;
+                        await this.plugin.saveSettings();
+                        this.display();
+                    }));
+
+            if (this.plugin.settings.qwenConfig.enabled) {
+                new Setting(containerEl)
+                    .setName('API Key')
+                    .setDesc('请输入您的通义千问 API Key')
+                    .addText(text => text
+                        .setPlaceholder('输入API Key')
+                        .setValue(this.plugin.settings.qwenConfig.apiKey)
+                        .onChange(async (value) => {
+                            this.plugin.settings.qwenConfig.apiKey = value;
+                            await this.plugin.saveSettings();
+                        }));
+
+                new Setting(containerEl)
+                    .setName('API Base URL')
+                    .setDesc('通义千问 API的基础URL')
+                    .addText(text => text
+                        .setPlaceholder('https://dashscope.aliyuncs.com/compatible-mode/v1')
+                        .setValue(this.plugin.settings.qwenConfig.baseUrl)
+                        .onChange(async (value) => {
+                            this.plugin.settings.qwenConfig.baseUrl = value;
+                            await this.plugin.saveSettings();
+                        }));
+
+                new Setting(containerEl)
+                    .setName('模型版本')
+                    .setDesc('选择通义千问模型版本')
+                    .addDropdown(dropdown => dropdown
+                        .addOption('qwen-max', '通义千问-Max (最强推理能力)')
+                        .addOption('qwen-plus', '通义千问-Plus (均衡)')
+                        .addOption('qwen-turbo', '通义千问-Turbo (快速)')
+                        .addOption('qwen-long', '通义千问-Long (长文本)')
+                        .setValue(this.plugin.settings.qwenConfig.model)
+                        .onChange(async (value) => {
+                            this.plugin.settings.qwenConfig.model = value;
+                            await this.plugin.saveSettings();
+                        }));
+            }
+        }
+
+        // 豆包设置
+        if (this.plugin.settings.currentModel === 'doubao') {
+            containerEl.createEl('h3', {text: '豆包设置'});
+            
+            new Setting(containerEl)
+                .setName('启用豆包')
+                .addToggle(toggle => toggle
+                    .setValue(this.plugin.settings.doubaoConfig.enabled)
+                    .onChange(async (value) => {
+                        this.plugin.settings.doubaoConfig.enabled = value;
+                        await this.plugin.saveSettings();
+                        this.display();
+                    }));
+
+            if (this.plugin.settings.doubaoConfig.enabled) {
+                new Setting(containerEl)
+                    .setName('Access Key')
+                    .setDesc('请输入您的VOLC_ACCESSKEY')
+                    .addText(text => text
+                        .setPlaceholder('输入Access Key')
+                        .setValue(this.plugin.settings.doubaoConfig.accessKey)
+                        .onChange(async (value) => {
+                            this.plugin.settings.doubaoConfig.accessKey = value;
+                            await this.plugin.saveSettings();
+                        }));
+
+                new Setting(containerEl)
+                    .setName('Secret Key')
+                    .setDesc('请输入您的VOLC_SECRETKEY')
+                    .addText(text => text
+                        .setPlaceholder('输入Secret Key')
+                        .setValue(this.plugin.settings.doubaoConfig.secretKey)
+                        .onChange(async (value) => {
+                            this.plugin.settings.doubaoConfig.secretKey = value;
+                            await this.plugin.saveSettings();
+                        }));
+
+                new Setting(containerEl)
+                    .setName('API Base URL')
+                    .setDesc('豆包 API的基础URL')
+                    .addText(text => text
+                        .setPlaceholder('https://ark-cn-beijing.bytedance.net/api/v3')
+                        .setValue(this.plugin.settings.doubaoConfig.baseUrl)
+                        .onChange(async (value) => {
+                            this.plugin.settings.doubaoConfig.baseUrl = value;
+                            await this.plugin.saveSettings();
+                        }));
+
+                new Setting(containerEl)
+                    .setName('Endpoint ID')
+                    .setDesc('请从火山方舟控制台获取您的推理端点ID')
+                    .addText(text => text
+                        .setPlaceholder('输入endpoint ID，例如：ep-20240826182225-kp7rp')
+                        .setValue(this.plugin.settings.doubaoConfig.endpointId)
+                        .onChange(async (value) => {
+                            this.plugin.settings.doubaoConfig.endpointId = value;
+                            this.plugin.settings.doubaoConfig.model = value;
+                            await this.plugin.saveSettings();
+                        }));
+
+                new Setting(containerEl)
+                    .setName('Region')
+                    .setDesc('API区域')
+                    .addText(text => text
+                        .setPlaceholder('cn-beijing')
+                        .setValue(this.plugin.settings.doubaoConfig.region)
+                        .onChange(async (value) => {
+                            this.plugin.settings.doubaoConfig.region = value;
+                            await this.plugin.saveSettings();
+                        }));
+            }
+        }
+
+        // 提示词设置
+        containerEl.createEl('h3', {text: '自定义提示词'});
+        
+        // 提示词列表
+        const promptsContainer = containerEl.createDiv('prompt-list');
+        this.plugin.settings.prompts.forEach((prompt, index) => {
+            const promptContainer = promptsContainer.createDiv('prompt-item');
+            
+            new Setting(promptContainer)
+                .setName('提示词名称')
+                .addText(text => text
+                    .setValue(prompt.name)
+                    .onChange(async (value) => {
+                        this.plugin.settings.prompts[index].name = value;
+                        await this.plugin.saveSettings();
+                    }));
+
+            new Setting(promptContainer)
+                .setName('提示词内容')
+                .setDesc('使用 {{text}} 表示选中的文字')
+                .addTextArea(text => text
+                    .setValue(prompt.prompt)
+                    .onChange(async (value) => {
+                        this.plugin.settings.prompts[index].prompt = value;
+                        await this.plugin.saveSettings();
+                    }));
+
+            // 删除按钮
+            new Setting(promptContainer)
+                .addButton(button => button
+                    .setButtonText('删除')
+                    .onClick(async () => {
+                        this.plugin.settings.prompts.splice(index, 1);
+                        await this.plugin.saveSettings();
+                        this.display();
+                    }));
+        });
+
+        // 添加新提示词按钮
+        new Setting(containerEl)
+            .addButton(button => button
+                .setButtonText('+ 添加提示词')
+                .onClick(async () => {
+                    this.plugin.settings.prompts.push({
+                        name: '新提示词',
+                        prompt: '{{text}}'
+                    });
+                    await this.plugin.saveSettings();
+                    this.display();
+                }));
+
+        // 问答格式设置
+        containerEl.createEl('h3', {text: '问答格式设置'});
+        
+        new Setting(containerEl)
+            .setName('问答格式模板')
+            .setDesc('设置问答格式的模板，使用 {{question}} 表示问题，{{answer}} 表示回答')
+            .addTextArea(text => text
+                .setValue(this.plugin.settings.qaFormat.template)
+                .onChange(async (value) => {
+                    this.plugin.settings.qaFormat.template = value;
+                    await this.plugin.saveSettings();
+                }));
+
+        new Setting(containerEl)
+            .setName('问题占位符')
+            .setDesc('用于替换问题的占位符')
+            .addText(text => text
+                .setValue(this.plugin.settings.qaFormat.questionPlaceholder)
+                .onChange(async (value) => {
+                    this.plugin.settings.qaFormat.questionPlaceholder = value;
+                    await this.plugin.saveSettings();
+                }));
+
+        new Setting(containerEl)
+            .setName('回答占位符')
+            .setDesc('用于替换回答的占位符')
+            .addText(text => text
+                .setValue(this.plugin.settings.qaFormat.answerPlaceholder)
+                .onChange(async (value) => {
+                    this.plugin.settings.qaFormat.answerPlaceholder = value;
+                    await this.plugin.saveSettings();
+                }));
+    }
+}
+
+module.exports = InteractiveAIPlugin; 

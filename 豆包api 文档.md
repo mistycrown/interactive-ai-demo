@@ -794,3 +794,107 @@ Mistral-7B 是 Mistral 在 3 月 25 日公开发布的大语言模型，擅长�
 |---|---|---|---|---|---|---|
 |Doubao-vision-pro-32k|241008|图片理解|32k|4k|500,000|[定价详情](https://www.volcengine.com/pricing?product=ark_bd&tab=1)|
 |Doubao-vision-lite-32k|241015|图片理解|32k|4k|500,000|[定价详情](https://www.volcengine.com/pricing?product=ark_bd&tab=1)|
+
+# 签名鉴权方式
+
+最近更新时间：2024.07.23 14:51:42首次发布时间：2024.07.10 15:12:25
+
+[我的收藏](https://www.volcengine.com/docs/favorite)
+
+火山方舟各 API 支持的签名鉴权方式如下表所示：
+
+|API|签名鉴权方式|
+|---|---|
+|大模型/智能体调用 API|[API Key 签名鉴权](https://www.volcengine.com/docs/82379/1298459#api-key-%E7%AD%BE%E5%90%8D%E9%89%B4%E6%9D%83)|
+|其他 OpenAPI|基于 IAM 访问控制的 [AK/SK 签名鉴权](https://www.volcengine.com/docs/82379/1298459#ak-sk-%E7%AD%BE%E5%90%8D%E9%89%B4%E6%9D%83)|
+
+  
+
+API Key 签名鉴权
+
+API Key 是您请求火山方舟模型推理 API 的安全凭证，您可以在 [API Key 管理](https://console.volcengine.com/ark/region:ark+cn-beijing/apiKey)页面创建并获取 API Key 作为推理接入点的访问密钥。
+
+## 获取 API Key
+
+进入 [API Key 管理](https://console.volcengine.com/ark/region:ark+cn-beijing/apiKey)页面，在您有权限的项目下点击**创建 API Key**，即可生成长效 API Key。
+
+注意
+
+API Key 是您请求火山方舟大模型服务的重要凭证。API Key 长期有效，请您不要将密钥信息共享至公开环境，妥善保管并定期轮换密钥，避免因未经授权的使用造成安全风险或资金损失。
+
+![](https://portal.volccdn.com/obj/volcfe/cloud-universal-doc/upload_773926e548b27cb2c853f3680f0699cd.png)  
+
+## 权限范围
+
+API Key 的授权范围为同[项目](https://www.volcengine.com/docs/6649/189152)下所有模型推理接入点 API 和智能体 API。  
+  
+
+## 签名构造
+
+API Key 签名鉴权方式要求在 HTTP 请求 header 中按如下方式添加 `Authorization` header:
+
+```bash
+Authorization: Bearer <api-key>
+```
+
+## API 调用示例
+
+```bash
+curl https://ark.cn-beijing.volces.com/api/v3/chat/completions \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer ea764f0f-3b60-45b3-****-************" \
+  -d '{
+    "model": "ep-20240704******-*****",
+    "messages": [
+        {
+            "role": "system",
+            "content": "You are a helpful assistant."
+        },
+        {
+            "role": "user",
+            "content": "Hello!"
+        }
+    ]
+  }'
+```
+
+  
+
+AK/SK 签名鉴权
+
+访问密钥（Access Key）是请求火山引擎各云服务 OpenAPI 的安全凭证，请参考 [Access Key 管理](https://www.volcengine.com/docs/6291/65568) 获取账户的 Access Key ID 和 Secret Access Key。
+
+## 获取访问密钥
+
+如果您需要获取当前身份的密钥，您可以进入 [API 访问密钥](https://console.volcengine.com/iam/keymanage/)页面（也可以从顶部导航中头像下拉菜单中的**API 访问密钥**入口中进入页面），创建并获取 Access Key ID 和 Secret Access Key。  
+![](https://portal.volccdn.com/obj/volcfe/cloud-universal-doc/upload_1a463f2c8ca46695a4113d5e3df8cf6f.png)
+
+## 签名构造
+
+火山引擎在 [SDK](https://www.volcengine.com/docs/6369/156029) 中提供了签名函数或方法，开发者只需要在请求中提供访问密钥等信息， SDK 会自动计算请求签名，并将签名结果添加到请求中。这种方法简化了签名过程，降低了开发难度。具体使用方式请参考各语言 SDK 文档。  
+  
+
+您也可以使用火山引擎开发者工具 [API Explorer](https://api.volcengine.com/api-explorer) 中的签名工具，快速构建 请求所需的 Authorization Header 并发起 cURL 请求：  
+![](https://portal.volccdn.com/obj/volcfe/cloud-universal-doc/upload_48e8cf922f2c6d1c4eedcd517441a0c9.png)![](https://portal.volccdn.com/obj/volcfe/cloud-universal-doc/upload_6079971d13c370bf305ab6977aba884c.png)  
+
+当您不可避免地需要自行编码构造签名时，可参考[签名方法](https://www.volcengine.com/docs/6369/67269)文档内的签名机制介绍，自行编码构造签名。我们也为您提供了签名 Demo 示例：
+
+- [签名伪代码 Demo](https://www.volcengine.com/docs/6369/67270)
+    
+- [签名源码示例](https://www.volcengine.com/docs/6369/185600)
+    
+
+  
+
+## API 调用示例
+
+```bash
+curl -X POST \
+  'https://open.volcengineapi.com/?Action=ListEndpoints&Version=2024-01-01' \
+  -H 'Authorization: HMAC-SHA256 Credential=AKLTM2MyNzJhMGExZmFhNDI5YTgzMTI****************/20240710/cn-beijing/ark/request, SignedHeaders=host;x-content-sha256;x-date, Signature=a7a01ad627bcb9ef03bd708bf0f680873d99fa99c45fe8b4****************' \
+  -H 'Content-Type: application/json' \
+  -H 'Host: open.volcengineapi.com' \
+  -H 'X-Content-Sha256: 44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e83****************' \
+  -H 'X-Date: 20240710T042925Z' \
+  -d '{}'
+```
