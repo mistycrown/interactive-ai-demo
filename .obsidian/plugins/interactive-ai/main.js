@@ -52,9 +52,7 @@ const DEFAULT_SETTINGS = {
     currentModel: 'spark',
     // 问答格式设置
     qaFormat: {
-        template: '> [!answer] {{question}}\n> {{answer}}',
-        questionPlaceholder: '{{question}}',
-        answerPlaceholder: '{{answer}}'
+        calloutType: 'note'  // 默认使用note类型
     },
     // 提示词设置
     prompts: [
@@ -344,7 +342,7 @@ class InteractiveAIView extends ItemView {
         // 问题部分
         const questionEl = headerLeft.createDiv('interactive-ai-question');
         const questionContent = questionEl.createDiv('interactive-ai-question-content');
-        const shortQuestion = question.length > 20 ? question.slice(0, 20) + '...' : question;
+        const shortQuestion = question.length > 10 ? question.slice(0, 10) + '...' : question;
         questionContent.setText(shortQuestion);
         questionContent.setAttribute('data-original-text', question);
 
@@ -522,12 +520,19 @@ class InteractiveAIView extends ItemView {
                     console.log('原始回答文本:', originalText);
                     
                     if (originalText) {
-                        console.log('问答格式模板:', this.plugin.settings.qaFormat.template);
-                        // 使用问答格式模板
-                        const format = this.plugin.settings.qaFormat.template
-                            .replace(this.plugin.settings.qaFormat.questionPlaceholder, cardEl.originalQuestion)
-                            .replace(this.plugin.settings.qaFormat.answerPlaceholder, originalText);
-                        console.log('格式化后的问答文本:', format);
+                        // 处理问题文本（作为标题）
+                        const formattedQuestion = cardEl.originalQuestion;
+                        
+                        // 处理回答文本（每一行添加 > 前缀）
+                        const formattedAnswer = originalText
+                            .split('\n')
+                            .map(line => line.trim())
+                            .filter(line => line.length > 0)
+                            .map(line => `> ${line}`)
+                            .join('\n');
+
+                        // 使用固定的问答格式模板
+                        const format = `> [!${this.plugin.settings.qaFormat.calloutType}] ${formattedQuestion}\n${formattedAnswer}`;
                         
                         // 如果有源信息，使用源信息的位置，否则使用当前光标位置
                         if (cardEl.sourceInfo && cardEl.sourceInfo.to) {
@@ -567,9 +572,17 @@ class InteractiveAIView extends ItemView {
             const copyQAButton = this.createButton(buttonsEl, '复制问答', async () => {
                 const originalText = answerContent.getAttribute('data-original-text');
                 if (originalText) {
-                    const format = this.plugin.settings.qaFormat.template
-                        .replace(this.plugin.settings.qaFormat.questionPlaceholder, cardEl.originalQuestion)
-                        .replace(this.plugin.settings.qaFormat.answerPlaceholder, originalText);
+                    // 处理回答文本（每一行添加 > 前缀）
+                    const formattedAnswer = originalText
+                        .split('\n')
+                        .map(line => line.trim())
+                        .filter(line => line.length > 0)
+                        .map(line => `> ${line}`)
+                        .join('\n');
+
+                    // 使用固定的问答格式模板
+                    const format = `> [!${this.plugin.settings.qaFormat.calloutType}] ${cardEl.originalQuestion}\n${formattedAnswer}`;
+                    
                     await navigator.clipboard.writeText(format);
                     new Notice('已复制问答格式到剪贴板');
                 }
@@ -2132,36 +2145,28 @@ class InteractiveAISettingTab extends PluginSettingTab {
                     this.display();
                 }));
 
-        // 问答格式设置
-        containerEl.createEl('h3', {text: '问答格式设置'});
+        // 移除问答格式设置部分，只保留Callout类型设置
+        containerEl.createEl('h3', {text: 'Callout格式设置'});
         
         new Setting(containerEl)
-            .setName('问答格式模板')
-            .setDesc('设置问答格式的模板，使用 {{question}} 表示问题，{{answer}} 表示回答')
-            .addTextArea(text => text
-                .setValue(this.plugin.settings.qaFormat.template)
+            .setName('Callout类型')
+            .setDesc('选择问答格式的Callout类型')
+            .addDropdown(dropdown => dropdown
+                .addOption('note', 'Note')
+                .addOption('abstract', 'Abstract/Summary/TLDR')
+                .addOption('info', 'Info/Todo')
+                .addOption('tip', 'Tip/Hint/Important')
+                .addOption('success', 'Success/Check/Done')
+                .addOption('question', 'Question/Help/FAQ')
+                .addOption('warning', 'Warning/Caution/Attention')
+                .addOption('failure', 'Failure/Fail/Missing')
+                .addOption('danger', 'Danger/Error')
+                .addOption('bug', 'Bug')
+                .addOption('example', 'Example')
+                .addOption('quote', 'Quote/Cite')
+                .setValue(this.plugin.settings.qaFormat.calloutType)
                 .onChange(async (value) => {
-                    this.plugin.settings.qaFormat.template = value;
-                    await this.plugin.saveSettings();
-                }));
-
-        new Setting(containerEl)
-            .setName('问题占位符')
-            .setDesc('用于替换问题的占位符')
-            .addText(text => text
-                .setValue(this.plugin.settings.qaFormat.questionPlaceholder)
-                .onChange(async (value) => {
-                    this.plugin.settings.qaFormat.questionPlaceholder = value;
-                    await this.plugin.saveSettings();
-                }));
-
-        new Setting(containerEl)
-            .setName('回答占位符')
-            .setDesc('用于替换回答的占位符')
-            .addText(text => text
-                .setValue(this.plugin.settings.qaFormat.answerPlaceholder)
-                .onChange(async (value) => {
-                    this.plugin.settings.qaFormat.answerPlaceholder = value;
+                    this.plugin.settings.qaFormat.calloutType = value;
                     await this.plugin.saveSettings();
                 }));
     }
