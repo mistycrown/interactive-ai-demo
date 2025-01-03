@@ -145,4 +145,30 @@
 .prompt-item textarea:focus {
     outline: none;
     border-color: var(--interactive-accent);
+}
+
+.interactive-ai-question-content {
+    max-height: 1.5em;
+    overflow: hidden;
+    transition: max-height 0.3s ease-out;
+    margin-bottom: 0.5em;
+    line-height: 1.5;
+}
+
+.interactive-ai-question.expandable {
+    position: relative;
+    padding-right: 3em;
+}
+
+.interactive-ai-toggle {
+    position: absolute;
+    right: 0.5em;
+    top: 0;
+    cursor: pointer;
+    color: var(--text-muted);
+    font-size: 0.9em;
+}
+
+.interactive-ai-toggle:hover {
+    color: var(--text-normal);
 } 

@@ -6,12 +6,23 @@ https://console.xfyun.cn/services/bm35
 
 ![[Pasted image 20250103141359.png]]
 
+跟百度文心一言一样，需要先创建应用（https://console.xfyun.cn/app/myapp），然后在应用里获取Key
+
+API key申请地址：https://console.xfyun.cn/services/cbm
+
+API文档地址：https://www.xfyun.cn/doc/spark/Web.html
+
+API定价信息：https://xinghuo.xfyun.cn/sparkapi
 
 ## deepseek 开放平台
 https://platform.deepseek.com/api_keys
 ![[Pasted image 20250103141438.png]]
 
+API key申请地址：https://platform.deepseek.com/api_keys
 
+API文档地址：https://platform.deepseek.com/api-docs/zh-cn/
+
+API定价信息：https://platform.deepseek.com/api-docs/zh-cn/pricing
 ## 月之暗面 / Kimi chat
 
 API key申请地址：
@@ -22,7 +33,7 @@ https://platform.moonshot.cn/console/api-keys
 API定价信息：
 https://platform.moonshot.cn/docs/price/chat
 
-# 百度 / 文心一言 
+## 百度 / 文心一言 
 
 流程很麻烦，也不好找！
 
@@ -41,3 +52,17 @@ API key申请地址：https://bigmodel.cn/usercenter/apikeys
 API文档地址：https://bigmodel.cn/dev/api
 
 API定价信息：https://open.bigmodel.cn/pricing
+
+
+## 阿里 / 通义千问 （Qwen）
+
+模型是好模型，就是存心不想让你找到！！
+https://bailian.console.aliyun.com/#/home
+
+API key申请地址：https://dashscope.console.aliyun.com/apiKey
+
+API文档地址：https://help.aliyun.com/zh/dashscope/developer-reference
+
+API定价信息：https://dashscope.console.aliyun.com/billing
+
+你是谁

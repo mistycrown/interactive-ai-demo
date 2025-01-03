@@ -24,6 +24,20 @@ const DEFAULT_SETTINGS = {
         baseUrl: 'https://api.moonshot.cn/v1',
         model: 'moonshot-v1-8k'
     },
+    // 智谱GLM设置
+    glmConfig: {
+        enabled: false,
+        apiKey: '',
+        baseUrl: 'https://open.bigmodel.cn/api/paas/v4',
+        model: 'glm-4-plus'
+    },
+    // 通义千问设置
+    qwenConfig: {
+        enabled: false,
+        apiKey: '',
+        baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+        model: 'qwen-turbo'
+    },
     // 当前选择的模型
     currentModel: 'spark',
     // 提示词设置
@@ -91,17 +105,27 @@ class InteractiveAIView extends ItemView {
             }
         });
 
-        // 问题部分（默认折叠）
+        // 问题部分
         const questionEl = cardEl.createDiv('interactive-ai-question');
-        questionEl.setText('问题（点击展开）');
-        const questionContent = cardEl.createDiv('interactive-ai-question-content');
+        const questionContent = questionEl.createDiv('interactive-ai-question-content');
         questionContent.setText(question);
-        questionContent.style.display = 'none';
 
-        questionEl.addEventListener('click', () => {
-            console.log('切换问题显示状态');
-            questionContent.style.display = questionContent.style.display === 'none' ? 'block' : 'none';
-        });
+        // 检查问题内容是否超过一行
+        setTimeout(() => {
+            if (questionContent.scrollHeight > questionContent.clientHeight) {
+                // 问题内容超过一行，添加展开/折叠功能
+                questionEl.addClass('expandable');
+                const toggleButton = questionEl.createDiv('interactive-ai-toggle');
+                toggleButton.setText('展开');
+                
+                let isExpanded = false;
+                toggleButton.addEventListener('click', () => {
+                    isExpanded = !isExpanded;
+                    questionContent.style.maxHeight = isExpanded ? questionContent.scrollHeight + 'px' : '1.5em';
+                    toggleButton.setText(isExpanded ? '折叠' : '展开');
+                });
+            }
+        }, 0);
 
         // 回答部分
         const answerEl = cardEl.createDiv('interactive-ai-answer');
@@ -259,6 +283,15 @@ class InteractiveAIPlugin extends Plugin {
         // 添加插件设置选项卡
         this.addSettingTab(new InteractiveAISettingTab(this.app, this));
 
+        // 添加命令 - 打开AI助手侧边栏
+        this.addCommand({
+            id: 'open-interactive-ai',
+            name: '打开AI助手侧边栏',
+            callback: () => {
+                this.activateView();
+            }
+        });
+
         // 添加命令 - 处理选中文本
         this.addCommand({
             id: 'process-selected-text',
@@ -295,6 +328,7 @@ class InteractiveAIPlugin extends Plugin {
                         item.setTitle("直接发送")
                             .setIcon("arrow-right")
                             .onClick(async () => {
+                                await this.activateView();  // 先打开侧边栏
                                 await this.handlePromptSelection(selectedText, selectedText);
                             });
                     });
@@ -307,6 +341,7 @@ class InteractiveAIPlugin extends Plugin {
                         submenu.addItem((item) => {
                             item.setTitle(prompt.name)
                                 .onClick(async () => {
+                                    await this.activateView();  // 先打开侧边栏
                                     const processedPrompt = prompt.prompt.replace('{{text}}', selectedText);
                                     await this.handlePromptSelection(selectedText, processedPrompt);
                                 });
@@ -421,6 +456,10 @@ class InteractiveAIPlugin extends Plugin {
             return this.callDeepSeekAPI(text, onUpdate);
         } else if (model === 'moonshot' && this.settings.moonshotConfig.enabled) {
             return this.callMoonshotAPI(text, onUpdate);
+        } else if (model === 'glm' && this.settings.glmConfig.enabled) {
+            return this.callGLMAPI(text, onUpdate);
+        } else if (model === 'qwen' && this.settings.qwenConfig.enabled) {
+            return this.callQwenAPI(text, onUpdate);
         } else {
             throw new Error('请先在设置中选择并配置要使用的模型');
         }
@@ -785,6 +824,195 @@ class InteractiveAIPlugin extends Plugin {
             });
         });
     }
+
+    async callGLMAPI(text, onUpdate) {
+        if (!this.settings.glmConfig.apiKey) {
+            throw new Error('请先配置智谱GLM API Key');
+        }
+
+        const url = `${this.settings.glmConfig.baseUrl}/chat/completions`;
+        const headers = {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${this.settings.glmConfig.apiKey}`
+        };
+
+        const data = {
+            model: this.settings.glmConfig.model,
+            messages: [
+                {
+                    role: 'system',
+                    content: '你是一个乐于回答各种问题的小助手，你的任务是提供专业、准确、有洞察力的建议。'
+                },
+                {
+                    role: 'user',
+                    content: text
+                }
+            ],
+            temperature: 0.3,
+            stream: true
+        };
+
+        try {
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: headers,
+                body: JSON.stringify(data)
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let content = '';
+
+            while (true) {
+                const {value, done} = await reader.read();
+                if (done) break;
+
+                const chunk = decoder.decode(value);
+                const lines = chunk.split('\n');
+
+                for (const line of lines) {
+                    if (line.trim() === '') continue;
+                    if (line.includes('[DONE]')) continue;
+
+                    try {
+                        const jsonStr = line.replace(/^data: /, '');
+                        const response = JSON.parse(jsonStr);
+                        
+                        if (response.choices && response.choices[0].delta && response.choices[0].delta.content) {
+                            content += response.choices[0].delta.content;
+                            if (onUpdate) {
+                                onUpdate(content);
+                            }
+                        }
+                    } catch (e) {
+                        console.error('解析响应失败:', e);
+                    }
+                }
+            }
+
+            return {
+                choices: [
+                    {
+                        message: {
+                            content: content
+                        }
+                    }
+                ]
+            };
+        } catch (error) {
+            console.error('智谱GLM API调用失败:', error);
+            throw error;
+        }
+    }
+
+    async callQwenAPI(text, onUpdate) {
+        if (!this.settings.qwenConfig.apiKey) {
+            throw new Error('请先配置通义千问 API Key');
+        }
+
+        const url = `${this.settings.qwenConfig.baseUrl}/chat/completions`;
+        const headers = {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${this.settings.qwenConfig.apiKey}`
+        };
+
+        const data = {
+            model: this.settings.qwenConfig.model,
+            messages: [
+                {
+                    role: 'system',
+                    content: 'You are a helpful assistant.'
+                },
+                {
+                    role: 'user',
+                    content: text
+                }
+            ],
+            temperature: 0.3,
+            stream: true,
+            stream_options: {
+                "include_usage": true
+            }
+        };
+
+        try {
+            console.log('发送请求到通义千问API:', url);
+            console.log('请求头:', headers);
+            console.log('请求数据:', data);
+
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: headers,
+                body: JSON.stringify(data)
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                console.error('通义千问API错误响应:', errorText);
+                throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
+            }
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let content = '';
+
+            while (true) {
+                const {value, done} = await reader.read();
+                if (done) break;
+
+                const chunk = decoder.decode(value);
+                const lines = chunk.split('\n');
+
+                for (const line of lines) {
+                    if (line.trim() === '') continue;
+                    if (line.includes('[DONE]')) continue;
+
+                    try {
+                        const jsonStr = line.replace(/^data: /, '');
+                        const response = JSON.parse(jsonStr);
+                        console.log('通义千问API返回数据:', response);
+                        
+                        // 修改解析逻辑以适应不同的响应格式
+                        if (response.choices && response.choices[0]) {
+                            if (response.choices[0].delta && response.choices[0].delta.content) {
+                                content += response.choices[0].delta.content;
+                            } else if (response.choices[0].message && response.choices[0].message.content) {
+                                content += response.choices[0].message.content;
+                            }
+                            
+                            if (onUpdate) {
+                                onUpdate(content);
+                            }
+                        }
+
+                        // 如果有usage信息，记录到日志
+                        if (response.usage) {
+                            console.log('Token使用情况:', response.usage);
+                        }
+                    } catch (e) {
+                        console.error('解析响应失败:', e, '原始数据:', line);
+                    }
+                }
+            }
+
+            return {
+                choices: [
+                    {
+                        message: {
+                            content: content
+                        }
+                    }
+                ]
+            };
+        } catch (error) {
+            console.error('通义千问API调用失败:', error);
+            throw error;
+        }
+    }
 }
 
 class InteractiveAISettingTab extends PluginSettingTab {
@@ -806,6 +1034,8 @@ class InteractiveAISettingTab extends PluginSettingTab {
                 .addOption('spark', '讯飞星火')
                 .addOption('deepseek', 'DeepSeek')
                 .addOption('moonshot', 'Moonshot')
+                .addOption('glm', '智谱GLM')
+                .addOption('qwen', '通义千问')
                 .setValue(this.plugin.settings.currentModel)
                 .onChange(async (value) => {
                     this.plugin.settings.currentModel = value;
@@ -971,6 +1201,115 @@ class InteractiveAISettingTab extends PluginSettingTab {
                         .setValue(this.plugin.settings.moonshotConfig.model)
                         .onChange(async (value) => {
                             this.plugin.settings.moonshotConfig.model = value;
+                            await this.plugin.saveSettings();
+                        }));
+            }
+        }
+
+        // 智谱GLM设置
+        if (this.plugin.settings.currentModel === 'glm') {
+            containerEl.createEl('h3', {text: '智谱GLM设置'});
+            
+            new Setting(containerEl)
+                .setName('启用智谱GLM')
+                .addToggle(toggle => toggle
+                    .setValue(this.plugin.settings.glmConfig.enabled)
+                    .onChange(async (value) => {
+                        this.plugin.settings.glmConfig.enabled = value;
+                        await this.plugin.saveSettings();
+                        this.display();
+                    }));
+
+            if (this.plugin.settings.glmConfig.enabled) {
+                new Setting(containerEl)
+                    .setName('API Key')
+                    .setDesc('请输入您的智谱GLM API Key')
+                    .addText(text => text
+                        .setPlaceholder('输入API Key')
+                        .setValue(this.plugin.settings.glmConfig.apiKey)
+                        .onChange(async (value) => {
+                            this.plugin.settings.glmConfig.apiKey = value;
+                            await this.plugin.saveSettings();
+                        }));
+
+                new Setting(containerEl)
+                    .setName('API Base URL')
+                    .setDesc('智谱GLM API的基础URL')
+                    .addText(text => text
+                        .setPlaceholder('https://open.bigmodel.cn/api/paas/v4')
+                        .setValue(this.plugin.settings.glmConfig.baseUrl)
+                        .onChange(async (value) => {
+                            this.plugin.settings.glmConfig.baseUrl = value;
+                            await this.plugin.saveSettings();
+                        }));
+
+                new Setting(containerEl)
+                    .setName('模型版本')
+                    .setDesc('选择智谱GLM模型版本')
+                    .addDropdown(dropdown => dropdown
+                        .addOption('glm-4-plus', 'GLM-4 Plus')
+                        .addOption('glm-4-0520', 'GLM-4 0520')
+                        .addOption('glm-4-air', 'GLM-4 Air')
+                        .addOption('glm-4-airx', 'GLM-4 AirX')
+                        .addOption('glm-4-long', 'GLM-4 Long')
+                        .addOption('glm-4-flashx', 'GLM-4 FlashX')
+                        .addOption('glm-4-flash', 'GLM-4 Flash')
+                        .setValue(this.plugin.settings.glmConfig.model)
+                        .onChange(async (value) => {
+                            this.plugin.settings.glmConfig.model = value;
+                            await this.plugin.saveSettings();
+                        }));
+            }
+        }
+
+        // 通义千问设置
+        if (this.plugin.settings.currentModel === 'qwen') {
+            containerEl.createEl('h3', {text: '通义千问设置'});
+            
+            new Setting(containerEl)
+                .setName('启用通义千问')
+                .addToggle(toggle => toggle
+                    .setValue(this.plugin.settings.qwenConfig.enabled)
+                    .onChange(async (value) => {
+                        this.plugin.settings.qwenConfig.enabled = value;
+                        await this.plugin.saveSettings();
+                        this.display();
+                    }));
+
+            if (this.plugin.settings.qwenConfig.enabled) {
+                new Setting(containerEl)
+                    .setName('API Key')
+                    .setDesc('请输入您的通义千问 API Key')
+                    .addText(text => text
+                        .setPlaceholder('输入API Key')
+                        .setValue(this.plugin.settings.qwenConfig.apiKey)
+                        .onChange(async (value) => {
+                            this.plugin.settings.qwenConfig.apiKey = value;
+                            await this.plugin.saveSettings();
+                        }));
+
+                new Setting(containerEl)
+                    .setName('API Base URL')
+                    .setDesc('通义千问 API的基础URL')
+                    .addText(text => text
+                        .setPlaceholder('https://dashscope.aliyuncs.com/compatible-mode/v1')
+                        .setValue(this.plugin.settings.qwenConfig.baseUrl)
+                        .onChange(async (value) => {
+                            this.plugin.settings.qwenConfig.baseUrl = value;
+                            await this.plugin.saveSettings();
+                        }));
+
+                new Setting(containerEl)
+                    .setName('模型版本')
+                    .setDesc('选择通义千问模型版本')
+                    .addDropdown(dropdown => dropdown
+                        .addOption('qwen-max', '通义千问-Max (最强推理能力)')
+                        .addOption('qwen-plus', '通义千问-Plus (均衡)')
+                        .addOption('qwen-turbo', '通义千问-Turbo (快速)')
+                        .addOption('qwen-long', '通义千问-Long (长文本)')
+                        .setValue(this.plugin.settings.qwenConfig.model)
+                        .onChange(async (value) => {
+                            this.plugin.settings.qwenConfig.model = value;
                             await this.plugin.saveSettings();
                         }));
             }

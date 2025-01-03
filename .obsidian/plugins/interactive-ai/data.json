@@ -17,7 +17,19 @@
     "baseUrl": "https://api.moonshot.cn/v1",
     "model": "moonshot-v1-8k"
   },
-  "currentModel": "moonshot",
+  "glmConfig": {
+    "enabled": true,
+    "apiKey": "1d1a8a6117b245b59bea02ea5a4c2747.7u0fjDgqxVxVIQyO",
+    "baseUrl": "https://open.bigmodel.cn/api/paas/v4",
+    "model": "glm-4-plus"
+  },
+  "qwenConfig": {
+    "enabled": true,
+    "apiKey": "sk-f3771abdd363438096e6cb5a2dbbb365",
+    "baseUrl": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+    "model": "qwen-turbo"
+  },
+  "currentModel": "qwen",
   "prompts": [
     {
       "name": "总结",
