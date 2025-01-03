@@ -151,7 +151,7 @@
             "state": {
               "type": "interactive-ai-view",
               "state": {},
-              "icon": "lucide-file",
+              "icon": "bot",
               "title": "Interactive AI"
             }
           }
@@ -174,12 +174,14 @@
   },
   "active": "c917e6ab85f7a4fb",
   "lastOpenFiles": [
+    "AI回答-2025-01-03 21-01-51.md",
+    "test.md",
+    "README.md",
+    "kimi调用api 文档.md",
     "image.png",
     "需求.md",
     "deepseek api文档.md",
     "api获取汇总.md",
-    "test.md",
-    "README.md",
     "Chatgpt api.md",
     "package.json",
     "test_chatgpt_web.py",
@@ -188,7 +190,6 @@
     "豆包api 文档.md",
     "通义千问api 文档.md",
     "智谱api 调用文档.md",
-    "kimi调用api 文档.md",
     "attachments/Pasted image 20250103141438.png",
     "讯飞星火模型调用说明.md",
     "Pasted image 20250103141328.png",

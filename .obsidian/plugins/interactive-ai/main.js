@@ -175,14 +175,16 @@ class InteractiveAIView extends ItemView {
             const text = textarea.value.trim();
             if (text) {
                 let finalText = text;
-                let sourceInfo = this.sourceInfo || null; // 使用保存的源信息
+                let sourceInfo = null;
 
                 // 获取当前活动的编辑器视图
                 const view = this.plugin.app.workspace.getActiveViewOfType(MarkdownView);
+                console.log('发送时当前活动视图:', view ? view.file.path : 'null');
                 
                 // 如果有引用文本，将其添加到问题中
                 if (inputContainer.dataset.reference) {
                     finalText = `参考以下内容：\n${inputContainer.dataset.reference}\n\n${text}`;
+                    sourceInfo = this.sourceInfo;
                 } else if (view) {
                     // 如果是直接在输入框输入，记录当前文件和光标位置
                     const editor = view.editor;
@@ -246,13 +248,14 @@ class InteractiveAIView extends ItemView {
                 
             case 'x':
                 const line1 = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                const line2 = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                
                 line1.setAttribute('x1', '18');
                 line1.setAttribute('y1', '6');
                 line1.setAttribute('x2', '6');
                 line1.setAttribute('y2', '18');
                 svg.appendChild(line1);
 
-                const line2 = document.createElementNS('http://www.w3.org/2000/svg', 'line');
                 line2.setAttribute('x1', '6');
                 line2.setAttribute('y1', '6');
                 line2.setAttribute('x2', '18');
@@ -386,173 +389,192 @@ class InteractiveAIView extends ItemView {
             await this.plugin.callAPI(cardEl.originalQuestion, (content) => {
                 this.updateCardContent(cardEl, content);
             });
-        });
+        }, '重新生成回答');
 
-        // 替换按钮
-        const replaceButton = this.createButton(buttonsEl, '替换', async () => {
-            console.log('点击替换按钮');
-            console.log('卡片源信息:', cardEl.sourceInfo);
-            
-            // 获取活动编辑器
-            let view = this.plugin.app.workspace.getActiveViewOfType(MarkdownView);
-            
-            // 如果没有找到活动视图，尝试激活源文件
-            if (!view && cardEl.sourceInfo) {
-                const sourceFile = this.plugin.app.vault.getAbstractFileByPath(cardEl.sourceInfo.filePath);
-                if (sourceFile) {
-                    await this.plugin.app.workspace.getLeaf().openFile(sourceFile);
-                    // 重新获取视图
-                    view = this.plugin.app.workspace.getActiveViewOfType(MarkdownView);
-                }
-            }
-
-            console.log('当前活动视图:', view ? view.file.path : 'null');
-            
-            if (view) {
-                const editor = view.editor;
-                const originalText = answerContent.getAttribute('data-original-text');
-                console.log('原始回答文本:', originalText);
+        // 只有在有源信息时才显示替换按钮
+        if (sourceInfo && sourceInfo.selectedText) {
+            // 替换按钮
+            const replaceButton = this.createButton(buttonsEl, '替换', async () => {
+                console.log('点击替换按钮');
+                console.log('卡片源信息:', cardEl.sourceInfo);
                 
-                if (originalText) {
-                    if (cardEl.sourceInfo) {
-                        console.log('使用源文件信息进行替换');
-                        console.log('源文件路径:', cardEl.sourceInfo.filePath);
-                        console.log('选中范围:', cardEl.sourceInfo.from, cardEl.sourceInfo.to);
-                        
-                        if (view.file.path === cardEl.sourceInfo.filePath) {
-                            console.log('在原位置进行替换');
-                            editor.setSelection(cardEl.sourceInfo.from, cardEl.sourceInfo.to);
-                        } else {
-                            console.log('文件不匹配，在当前位置替换');
-                        }
-                    } else {
-                        console.log('没有源文件信息，在当前位置替换');
+                // 获取活动编辑器
+                let view = this.plugin.app.workspace.getActiveViewOfType(MarkdownView);
+                
+                // 如果没有找到活动视图，尝试激活源文件
+                if (!view && cardEl.sourceInfo) {
+                    const sourceFile = this.plugin.app.vault.getAbstractFileByPath(cardEl.sourceInfo.filePath);
+                    if (sourceFile) {
+                        await this.plugin.app.workspace.getLeaf().openFile(sourceFile);
+                        // 重新获取视图
+                        view = this.plugin.app.workspace.getActiveViewOfType(MarkdownView);
                     }
-                    
-                    editor.replaceSelection(originalText);
-                    new Notice('已替换选中文本');
-                } else {
-                    console.log('未找到原始回答文本');
                 }
-            } else {
-                console.log('未找到活动的编辑器视图');
-                new Notice('请先打开一个笔记文件');
-            }
-        });
 
-        // 插入按钮
-        const appendButton = this.createButton(buttonsEl, '插入', async () => {
-            console.log('点击插入按钮');
-            console.log('卡片源信息:', cardEl.sourceInfo);
-            
-            // 获取活动编辑器
-            const view = this.plugin.app.workspace.getActiveViewOfType(MarkdownView);
-            console.log('当前活动视图:', view ? view.file.path : 'null');
-            
-            // 如果没有找到活动视图，尝试激活源文件
-            if (!view && cardEl.sourceInfo) {
-                const sourceFile = this.plugin.app.vault.getAbstractFileByPath(cardEl.sourceInfo.filePath);
-                if (sourceFile) {
-                    await this.plugin.app.workspace.getLeaf().openFile(sourceFile);
-                }
-            }
-            
-            // 重新获取编辑器
-            const editor = this.plugin.getActiveEditor();
-            if (editor) {
-                const originalText = answerContent.getAttribute('data-original-text');
-                console.log('原始回答文本:', originalText);
+                console.log('当前活动视图:', view ? view.file.path : 'null');
                 
-                if (originalText) {
-                    if (cardEl.sourceInfo) {
-                        console.log('使用源文件信息进行插入');
-                        console.log('源文件路径:', cardEl.sourceInfo.filePath);
-                        console.log('插入位置:', cardEl.sourceInfo.to);
-                        
-                        const currentFile = this.plugin.app.workspace.getActiveFile();
-                        if (currentFile && currentFile.path === cardEl.sourceInfo.filePath) {
-                            console.log('在原文件位置后插入');
-                            editor.setCursor(cardEl.sourceInfo.to);
+                if (view) {
+                    const editor = view.editor;
+                    const originalText = answerContent.getAttribute('data-original-text');
+                    console.log('原始回答文本:', originalText);
+                    
+                    if (originalText) {
+                        if (cardEl.sourceInfo) {
+                            console.log('使用源文件信息进行替换');
+                            console.log('源文件路径:', cardEl.sourceInfo.filePath);
+                            console.log('选中范围:', cardEl.sourceInfo.from, cardEl.sourceInfo.to);
+                            
+                            if (view.file.path === cardEl.sourceInfo.filePath) {
+                                console.log('在原位置进行替换');
+                                editor.setSelection(cardEl.sourceInfo.from, cardEl.sourceInfo.to);
+                            } else {
+                                console.log('文件不匹配，在当前位置替换');
+                            }
                         } else {
-                            console.log('文件不匹配，在当前位置插入');
+                            console.log('没有源文件信息，在当前位置替换');
                         }
+                        
+                        editor.replaceSelection(originalText);
+                        new Notice('已替换选中文本');
                     } else {
-                        console.log('没有源文件信息，在当前位置插入');
+                        console.log('未找到原始回答文本');
                     }
-                    
-                    const cursor = editor.getCursor();
-                    console.log('插入位置光标:', cursor);
-                    editor.replaceRange('\n' + originalText, cursor);
-                    new Notice('已在光标处插入');
                 } else {
-                    console.log('未找到原始回答文本');
+                    console.log('未找到活动的编辑器视图');
+                    new Notice('请先打开一个笔记文件');
                 }
-            } else {
-                console.log('未找到活动的编辑器视图');
-                new Notice('请先打开一个笔记文件');
-            }
-        });
+            }, '替换选中的文本');
 
-        // 问答按钮
-        const qaButton = this.createButton(buttonsEl, '问答', async () => {
-            console.log('点击问答按钮');
-            console.log('卡片源信息:', cardEl.sourceInfo);
-            console.log('原始问题:', cardEl.originalQuestion);
-            
-            // 获取活动编辑器
-            let view = this.plugin.app.workspace.getActiveViewOfType(MarkdownView);
-            
-            // 如果没有找到活动视图，尝试激活源文件
-            if (!view && cardEl.sourceInfo) {
-                const sourceFile = this.plugin.app.vault.getAbstractFileByPath(cardEl.sourceInfo.filePath);
-                if (sourceFile) {
-                    await this.plugin.app.workspace.getLeaf().openFile(sourceFile);
-                    // 重新获取视图
-                    view = this.plugin.app.workspace.getActiveViewOfType(MarkdownView);
-                }
-            }
-
-            console.log('当前活动视图:', view ? view.file.path : 'null');
-            
-            if (view) {
-                const editor = view.editor;
-                const originalText = answerContent.getAttribute('data-original-text');
-                console.log('原始回答文本:', originalText);
+            // 插入按钮
+            const appendButton = this.createButton(buttonsEl, '插入', async () => {
+                console.log('点击插入按钮');
+                console.log('卡片源信息:', cardEl.sourceInfo);
                 
+                // 获取活动编辑器
+                let view = this.plugin.app.workspace.getActiveViewOfType(MarkdownView);
+                console.log('当前活动视图:', view ? view.file.path : 'null');
+                
+                // 如果没有找到活动视图，尝试激活源文件
+                if (!view && cardEl.sourceInfo) {
+                    const sourceFile = this.plugin.app.vault.getAbstractFileByPath(cardEl.sourceInfo.filePath);
+                    if (sourceFile) {
+                        await this.plugin.app.workspace.getLeaf().openFile(sourceFile);
+                        // 重新获取视图
+                        view = this.plugin.app.workspace.getActiveViewOfType(MarkdownView);
+                    }
+                }
+
+                console.log('当前活动视图:', view ? view.file.path : 'null');
+                
+                if (view) {
+                    const editor = view.editor;
+                    const originalText = answerContent.getAttribute('data-original-text');
+                    console.log('原始回答文本:', originalText);
+                    
+                    if (originalText) {
+                        if (cardEl.sourceInfo) {
+                            console.log('使用源文件信息进行插入');
+                            console.log('源文件路径:', cardEl.sourceInfo.filePath);
+                            console.log('插入位置:', cardEl.sourceInfo.to);
+                            
+                            if (view.file.path === cardEl.sourceInfo.filePath) {
+                                console.log('在原文件位置后插入');
+                                editor.setCursor(cardEl.sourceInfo.to);
+                            }
+                        }
+                        
+                        const cursor = editor.getCursor();
+                        editor.replaceRange('\n' + originalText, cursor);
+                        new Notice('已插入内容');
+                    } else {
+                        console.log('未找到原始回答文本');
+                    }
+                } else {
+                    console.log('未找到活动的编辑器视图');
+                    new Notice('请先打开一个笔记文件');
+                }
+            }, '在原文后追加');
+
+            // 问答按钮
+            const qaButton = this.createButton(buttonsEl, '问答', async () => {
+                console.log('点击问答按钮');
+                console.log('卡片源信息:', cardEl.sourceInfo);
+                console.log('原始问题:', cardEl.originalQuestion);
+                
+                // 获取活动编辑器
+                let view = this.plugin.app.workspace.getActiveViewOfType(MarkdownView);
+                
+                // 如果没有找到活动视图，尝试激活源文件
+                if (!view && cardEl.sourceInfo) {
+                    const sourceFile = this.plugin.app.vault.getAbstractFileByPath(cardEl.sourceInfo.filePath);
+                    if (sourceFile) {
+                        await this.plugin.app.workspace.getLeaf().openFile(sourceFile);
+                        // 重新获取视图
+                        view = this.plugin.app.workspace.getActiveViewOfType(MarkdownView);
+                    }
+                }
+
+                console.log('当前活动视图:', view ? view.file.path : 'null');
+                
+                if (view) {
+                    const editor = view.editor;
+                    const originalText = answerContent.getAttribute('data-original-text');
+                    console.log('原始回答文本:', originalText);
+                    
+                    if (originalText) {
+                        console.log('问答格式模板:', this.plugin.settings.qaFormat.template);
+                        // 使用问答格式模板
+                        const format = this.plugin.settings.qaFormat.template
+                            .replace(this.plugin.settings.qaFormat.questionPlaceholder, cardEl.originalQuestion)
+                            .replace(this.plugin.settings.qaFormat.answerPlaceholder, originalText);
+                        console.log('格式化后的问答文本:', format);
+                        
+                        // 如果有源信息，使用源信息的位置，否则使用当前光标位置
+                        if (cardEl.sourceInfo && cardEl.sourceInfo.to) {
+                            console.log('使用源文件信息进行插入');
+                            console.log('源文件路径:', cardEl.sourceInfo.filePath);
+                            console.log('插入位置:', cardEl.sourceInfo.to);
+                            
+                            if (view.file.path === cardEl.sourceInfo.filePath) {
+                                console.log('在原文件位置后插入');
+                                editor.setCursor(cardEl.sourceInfo.to);
+                            }
+                        }
+                        
+                        const cursor = editor.getCursor();
+                        editor.replaceRange('\n' + format, cursor);
+                        new Notice('已插入问答格式');
+                    } else {
+                        console.log('未找到原始回答文本');
+                        new Notice('未找到回答内容');
+                    }
+                } else {
+                    console.log('未找到活动的编辑器视图');
+                    new Notice('请先打开一个笔记文件');
+                }
+            }, '以问答格式插入');
+        } else {
+            // 如果没有源信息，显示复制按钮
+            const copyButton = this.createButton(buttonsEl, '复制', async () => {
+                const originalText = answerContent.getAttribute('data-original-text');
                 if (originalText) {
-                    console.log('问答格式模板:', this.plugin.settings.qaFormat.template);
-                    // 使用问答格式模板
+                    await navigator.clipboard.writeText(originalText);
+                    new Notice('已复制到剪贴板');
+                }
+            }, '复制回答到剪贴板');
+
+            // 复制问答按钮
+            const copyQAButton = this.createButton(buttonsEl, '复制问答', async () => {
+                const originalText = answerContent.getAttribute('data-original-text');
+                if (originalText) {
                     const format = this.plugin.settings.qaFormat.template
                         .replace(this.plugin.settings.qaFormat.questionPlaceholder, cardEl.originalQuestion)
                         .replace(this.plugin.settings.qaFormat.answerPlaceholder, originalText);
-                    console.log('格式化后的问答文本:', format);
-                    
-                    if (cardEl.sourceInfo) {
-                        console.log('使用源文件信息进行插入');
-                        console.log('源文件路径:', cardEl.sourceInfo.filePath);
-                        console.log('选中范围:', cardEl.sourceInfo.from, cardEl.sourceInfo.to);
-                        
-                        if (view.file.path === cardEl.sourceInfo.filePath) {
-                            console.log('在原位置插入问答格式');
-                            editor.setSelection(cardEl.sourceInfo.from, cardEl.sourceInfo.to);
-                        } else {
-                            console.log('文件不匹配，在当前位置插入');
-                        }
-                    } else {
-                        console.log('没有源文件信息，在当前位置插入');
-                    }
-                    
-                    editor.replaceSelection(format);
-                    new Notice('已插入问答格式');
-                } else {
-                    console.log('未找到原始回答文本');
-                    new Notice('未找到回答内容');
+                    await navigator.clipboard.writeText(format);
+                    new Notice('已复制问答格式到剪贴板');
                 }
-            } else {
-                console.log('未找到活动的编辑器视图');
-                new Notice('请先打开一个笔记文件');
-            }
-        });
+            }, '以问答格式复制到剪贴板');
+        }
 
         // 将新卡片插入到内容区域的最前面
         if (this.contentArea.firstChild) {
@@ -567,11 +589,11 @@ class InteractiveAIView extends ItemView {
     }
 
     // 创建按钮
-    createButton(container, text, callback) {
+    createButton(container, text, callback, tooltip) {
         const button = container.createEl('button', {
             cls: 'interactive-ai-button',
             attr: {
-                'aria-label': text
+                'aria-label': tooltip || text  
             }
         });
 
@@ -600,6 +622,29 @@ class InteractiveAIView extends ItemView {
                 const replacePath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
                 replacePath.setAttribute('d', 'M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z');
                 svg.appendChild(replacePath);
+                break;
+            case '复制':
+                // 复制图标 (clipboard)
+                const clipboardRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                clipboardRect.setAttribute('x', '9');
+                clipboardRect.setAttribute('y', '9');
+                clipboardRect.setAttribute('width', '13');
+                clipboardRect.setAttribute('height', '13');
+                clipboardRect.setAttribute('rx', '2');
+                clipboardRect.setAttribute('ry', '2');
+                const clipboardPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                clipboardPath.setAttribute('d', 'M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1');
+                svg.appendChild(clipboardRect);
+                svg.appendChild(clipboardPath);
+                break;
+            case '复制问答':
+                // 复制问答图标 (message-square-quote)
+                const messageRect = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                messageRect.setAttribute('d', 'M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z');
+                const quotePath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                quotePath.setAttribute('d', 'M9 9h1c0-2-3-3-3-3v1c1 0 2 .5 2 2zm5 0h1c0-2-3-3-3-3v1c1 0 2 .5 2 2z');
+                svg.appendChild(messageRect);
+                svg.appendChild(quotePath);
                 break;
             case '插入':
                 // 插入图标 (plus-circle)
@@ -689,6 +734,10 @@ class InteractiveAIView extends ItemView {
             // 清理多余的空行
             .replace(/\n\s*\n\s*\n/g, '\n\n')
             .trim();
+    }
+
+    getIcon() {
+        return "bot";
     }
 }
 
