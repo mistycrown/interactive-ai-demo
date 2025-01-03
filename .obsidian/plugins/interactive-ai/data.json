@@ -29,7 +29,12 @@
     "baseUrl": "https://dashscope.aliyuncs.com/compatible-mode/v1",
     "model": "qwen-turbo"
   },
-  "currentModel": "qwen",
+  "currentModel": "deepseek",
+  "qaFormat": {
+    "template": "> [!tip] {{question}}\n> {{answer}}",
+    "questionPlaceholder": "{{question}}",
+    "answerPlaceholder": "{{answer}}"
+  },
   "prompts": [
     {
       "name": "总结",
